@@ -1,5 +1,6 @@
 /**
  * Application Settings & Database Diagnostics Screen
+ * High-end boutique store preferences, currency configuration, and data integrity.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -16,14 +16,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { checkDatabaseIntegrity, getDatabaseStats } from '../../database/queryUtils';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 
+const CURRENCIES = [
+  { code: 'PKR', symbol: 'Rs' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'AED', symbol: 'AED' },
+  { code: 'SAR', symbol: 'SAR' },
+  { code: 'INR', symbol: '₹' },
+];
+
 export default function SettingsScreen({ navigation }) {
-  const { settings, saveSettings } = useApp();
+  const { settings, saveSettings, notifyDataChanged } = useApp();
   const { pinEnabled } = useAuth();
 
   const [businessName, setBusinessName] = useState(settings.business_name || '');
@@ -55,7 +66,8 @@ export default function SettingsScreen({ navigation }) {
         receipt_footer: receiptFooter.trim(),
         default_min_stock_alert: minStockAlert.trim(),
       });
-      Alert.alert('Saved', 'Store preferences updated successfully.');
+      notifyDataChanged();
+      Alert.alert('Settings Saved', 'Boutique store preferences updated successfully.');
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to update settings');
     } finally {
@@ -69,7 +81,7 @@ export default function SettingsScreen({ navigation }) {
     const stats = await getDatabaseStats();
     setDbStats(stats);
     Alert.alert(
-      res.ok ? 'Database Healthy' : 'Database Warning',
+      res.ok ? 'Database Verified Healthy' : 'Database Warning',
       res.message
     );
   };
@@ -77,24 +89,31 @@ export default function SettingsScreen({ navigation }) {
   const totalDbRows = dbStats ? Object.values(dbStats).reduce((a, b) => a + b, 0) : 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="Settings & Preferences" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header
+        title="Store Settings"
+        subtitle="Boutique Profile & System Controls"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* Business Profile */}
+        {/* Boutique Profile */}
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Clothing Store Profile</Text>
-          <Text style={styles.cardSubtitle}>Appears on printed receipts and customer invoices</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="storefront-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Boutique Brand Profile</Text>
+          </View>
+          <Text style={styles.cardSubtitle}>Displayed on customer receipts, invoices and exports</Text>
 
           <Input
-            label="Business Name"
+            label="Boutique Name"
             value={businessName}
             onChangeText={setBusinessName}
-            placeholder="e.g. Clothio Apparel"
+            placeholder="e.g. Clothio Luxury Apparel"
           />
 
           <Input
-            label="Contact Phone"
+            label="Contact Phone / WhatsApp"
             value={businessPhone}
             onChangeText={setBusinessPhone}
             placeholder="e.g. +92 300 1234567"
@@ -102,16 +121,39 @@ export default function SettingsScreen({ navigation }) {
           />
 
           <Input
-            label="Shop Address"
+            label="Storefront Address"
             value={businessAddress}
             onChangeText={setBusinessAddress}
-            placeholder="e.g. Main Commercial Market, Lahore"
+            placeholder="e.g. 14 Fashion Avenue, Gulberg III, Lahore"
           />
+
+          {/* Currency Selector Pills */}
+          <Text style={styles.fieldLabel}>Operating Currency</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.currencyPills}>
+            {CURRENCIES.map((c) => {
+              const isSelected = currencySymbol === c.symbol;
+              return (
+                <TouchableOpacity
+                  key={c.code}
+                  style={[styles.currencyPill, isSelected && styles.currencyPillSelected]}
+                  onPress={() => setCurrencySymbol(c.symbol)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.currencyCode, isSelected && styles.currencyCodeSelected]}>
+                    {c.code}
+                  </Text>
+                  <Text style={[styles.currencySym, isSelected && styles.currencySymSelected]}>
+                    {c.symbol}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Input
-                label="Currency Symbol"
+                label="Custom Symbol"
                 value={currencySymbol}
                 onChangeText={setCurrencySymbol}
                 placeholder="Rs"
@@ -119,7 +161,7 @@ export default function SettingsScreen({ navigation }) {
             </View>
             <View style={styles.col}>
               <Input
-                label="Default Low Stock Threshold"
+                label="Low Stock Alert"
                 value={minStockAlert}
                 onChangeText={setMinStockAlert}
                 placeholder="5"
@@ -129,16 +171,16 @@ export default function SettingsScreen({ navigation }) {
           </View>
 
           <Input
-            label="Receipt Footer Note"
+            label="Receipt Tagline / Return Policy"
             value={receiptFooter}
             onChangeText={setReceiptFooter}
-            placeholder="Return terms, thank you note, etc."
+            placeholder="e.g. Items can be exchanged within 7 days with original tag."
             multiline
             numberOfLines={2}
           />
 
           <Button
-            title="Save Store Preferences"
+            title="Save Brand Preferences"
             variant="primary"
             loading={saving}
             onPress={handleSaveProfile}
@@ -148,17 +190,21 @@ export default function SettingsScreen({ navigation }) {
 
         {/* Security & Backup Shortcuts */}
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Data & Security</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Security & Backup</Text>
+          </View>
 
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => navigation.navigate('PinSettings')}
+            activeOpacity={0.7}
           >
             <View style={styles.menuIconCircle}>
               <Ionicons name="lock-closed-outline" size={20} color={COLORS.primary} />
             </View>
             <View style={styles.menuInfo}>
-              <Text style={styles.menuTitle}>App PIN Security</Text>
+              <Text style={styles.menuTitle}>Manager PIN Protection</Text>
               <Text style={styles.menuSubtitle}>
                 {pinEnabled ? 'PIN Lock is currently active' : 'PIN Lock is disabled'}
               </Text>
@@ -171,14 +217,15 @@ export default function SettingsScreen({ navigation }) {
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => navigation.navigate('BackupRestore')}
+            activeOpacity={0.7}
           >
             <View style={styles.menuIconCircle}>
               <Ionicons name="cloud-upload-outline" size={20} color={COLORS.primary} />
             </View>
             <View style={styles.menuInfo}>
-              <Text style={styles.menuTitle}>Local Backup & Restore</Text>
+              <Text style={styles.menuTitle}>Local Backup & Data Export</Text>
               <Text style={styles.menuSubtitle}>
-                Export offline database or restore from file
+                Export offline database snapshot or restore
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
@@ -189,15 +236,20 @@ export default function SettingsScreen({ navigation }) {
         <Card style={styles.card}>
           <View style={styles.diagHeader}>
             <View>
-              <Text style={styles.cardTitle}>SQLite Storage Diagnostics</Text>
-              <Text style={styles.cardSubtitle}>Offline Relational Database (WAL Mode)</Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="server-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.cardTitle}>Offline SQLite Engine</Text>
+              </View>
+              <Text style={styles.cardSubtitle}>Zero-latency local storage with WAL journaling</Text>
             </View>
-            <Button
-              title="Verify Health"
-              variant="outline"
-              size="sm"
+            <TouchableOpacity
+              style={styles.verifyPillBtn}
               onPress={handleRunIntegrityCheck}
-            />
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.primary} />
+              <Text style={styles.verifyPillText}>Verify</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.diagStatsRow}>
@@ -207,14 +259,14 @@ export default function SettingsScreen({ navigation }) {
             </View>
             <View style={styles.diagDivider} />
             <View style={styles.diagStat}>
-              <Text style={styles.diagLabel}>Products & Variants</Text>
+              <Text style={styles.diagLabel}>Catalog Items</Text>
               <Text style={styles.diagVal}>
                 {(dbStats?.products || 0) + (dbStats?.product_variants || 0)}
               </Text>
             </View>
             <View style={styles.diagDivider} />
             <View style={styles.diagStat}>
-              <Text style={styles.diagLabel}>Sales Records</Text>
+              <Text style={styles.diagLabel}>Sales Receipts</Text>
               <Text style={styles.diagVal}>{dbStats?.sales || 0}</Text>
             </View>
           </View>
@@ -223,13 +275,13 @@ export default function SettingsScreen({ navigation }) {
             <View
               style={[
                 styles.integrityNotice,
-                { backgroundColor: integrityStatus.ok ? COLORS.successLight : COLORS.dangerLight },
+                { backgroundColor: integrityStatus.ok ? 'rgba(74, 124, 89, 0.12)' : 'rgba(197, 83, 62, 0.12)' },
               ]}
             >
               <Text
                 style={[
                   styles.integrityText,
-                  { color: integrityStatus.ok ? COLORS.successText : COLORS.dangerText },
+                  { color: integrityStatus.ok ? COLORS.success : COLORS.danger },
                 ]}
               >
                 {integrityStatus.message}
@@ -242,42 +294,86 @@ export default function SettingsScreen({ navigation }) {
           </Text>
         </Card>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
   card: {
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
   },
   cardTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
   },
   cardSubtitle: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
     marginTop: 2,
     marginBottom: SPACING.md,
   },
+  fieldLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  currencyPills: {
+    gap: 8,
+    paddingBottom: SPACING.md,
+  },
+  currencyPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  currencyPillSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  currencyCode: {
+    ...TYPOGRAPHY.captionSmall,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  currencyCodeSelected: {
+    color: COLORS.textInverse,
+  },
+  currencySym: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  currencySymSelected: {
+    color: 'rgba(255,255,255,0.8)',
+  },
   row: {
     flexDirection: 'row',
+    gap: SPACING.md,
   },
   col: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
   saveBtn: {
-    marginTop: SPACING.xs,
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.pill,
   },
   menuItem: {
     flexDirection: 'row',
@@ -285,10 +381,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   menuIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceSubtle,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primarySurface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
@@ -298,12 +394,13 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
   menuSubtitle: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
+    marginTop: 2,
   },
   menuDivider: {
     height: 1,
@@ -316,22 +413,39 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: SPACING.sm,
   },
+  verifyPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primarySurface,
+    borderWidth: 1,
+    borderColor: 'rgba(91,36,19,0.15)',
+  },
+  verifyPillText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
   diagStatsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginVertical: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
   diagStat: {
     flex: 1,
     alignItems: 'center',
   },
   diagLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    fontSize: 10,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
     marginBottom: 2,
   },
   diagVal: {
@@ -346,7 +460,7 @@ const styles = StyleSheet.create({
   },
   integrityNotice: {
     padding: SPACING.sm,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS.md,
     marginVertical: SPACING.xs,
   },
   integrityText: {
@@ -355,7 +469,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   appVersionText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
     textAlign: 'center',
     marginTop: SPACING.md,

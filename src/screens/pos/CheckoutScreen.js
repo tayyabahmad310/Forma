@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -20,6 +19,7 @@ import { getAllCustomers, createCustomer } from '../../repositories/customerRepo
 import { formatCurrency, toMinorUnits, toMajorUnits, calculateDiscount } from '../../utils/currency';
 import { PAYMENT_METHODS, DISCOUNT_TYPES } from '../../constants/config';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -228,8 +228,8 @@ export default function CheckoutScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="Checkout & Payment" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header title="My Cart" subtitle={`Checkout • ${cart.length} items`} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         {/* Customer Selector */}
@@ -549,7 +549,7 @@ export default function CheckoutScreen({ route, navigation }) {
           style={{ marginTop: 12 }}
         />
       </ModalSheet>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 

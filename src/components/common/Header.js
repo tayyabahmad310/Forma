@@ -1,11 +1,12 @@
 /**
- * Standard Reusable Header Component
+ * Luxury Fashion Header Component
+ * Clean boutique typography, rounded circle back button, right action pill.
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '../../constants/theme';
 
 export default function Header({
   title,
@@ -14,17 +15,26 @@ export default function Header({
   rightAction = null,
   rightIcon = null,
   onRightPress = null,
+  backgroundColor = COLORS.surface,
+  showBorder = true,
 }) {
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor },
+        showBorder && styles.withBorder,
+      ]}
+    >
       <View style={styles.leftContainer}>
         {onBack && (
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
+            activeOpacity={0.7}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
         )}
         <View style={styles.titleContainer}>
@@ -43,8 +53,12 @@ export default function Header({
         {rightAction ? (
           rightAction
         ) : rightIcon && onRightPress ? (
-          <TouchableOpacity style={styles.iconButton} onPress={onRightPress}>
-            <Ionicons name={rightIcon} size={22} color={COLORS.textPrimary} />
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={onRightPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={rightIcon} size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -54,12 +68,14 @@ export default function Header({
 
 const styles = StyleSheet.create({
   container: {
-    height: 56,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm,
+  },
+  withBorder: {
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
@@ -69,27 +85,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: SPACING.md,
-    padding: SPACING.xs,
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    ...TYPOGRAPHY.h3,
+    ...TYPOGRAPHY.h2,
     color: COLORS.textPrimary,
   },
   subtitle: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
-    marginTop: 1,
+    marginTop: 2,
   },
   rightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    padding: SPACING.xs,
+    width: 38,
+    height: 38,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: SPACING.sm,
   },
 });

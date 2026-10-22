@@ -1,5 +1,6 @@
 /**
  * Customers Directory & Outstanding Credit Balances Screen
+ * High-end boutique customer directory with credit tracking.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -21,6 +21,7 @@ import {
 } from '../../repositories/customerRepository';
 import { formatCurrency } from '../../utils/currency';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import Card from '../../components/common/Card';
@@ -82,16 +83,18 @@ export default function CustomerListScreen({ route, navigation }) {
 
     try {
       setSaving(true);
-      const payload = {
-        name: name.trim(),
-        phone: phone.trim() || null,
-        notes: notes.trim() || null,
-      };
-
       if (editingId) {
-        await updateCustomer(editingId, payload);
+        await updateCustomer(editingId, {
+          name: name.trim(),
+          phone: phone.trim() || null,
+          notes: notes.trim() || null,
+        });
       } else {
-        await createCustomer(payload);
+        await createCustomer({
+          name: name.trim(),
+          phone: phone.trim() || null,
+          notes: notes.trim() || null,
+        });
       }
 
       setShowModal(false);
@@ -104,236 +107,265 @@ export default function CustomerListScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title="Customers"
-        subtitle={`${customers.length} registered customers`}
+        title="Clientele Directory"
+        subtitle="VIP Customers & Balances"
         onBack={() => navigation.goBack()}
-        rightAction={
-          <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
-            <Ionicons name="add" size={20} color={COLORS.textInverse} />
-            <Text style={styles.addBtnText}>Add</Text>
-          </TouchableOpacity>
-        }
+        rightIcon="person-add-outline"
+        onRightPress={openAddModal}
       />
 
       <View style={styles.searchSection}>
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search customer name or phone..."
+          placeholder="Search by client name or phone..."
           onClear={() => setSearch('')}
         />
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.tabFilterRow}>
+      <View style={styles.filterRow}>
         <TouchableOpacity
-          style={[styles.tabFilterBtn, !hasBalanceOnly && styles.tabFilterBtnActive]}
+          style={[styles.filterPill, !hasBalanceOnly && styles.filterPillActive]}
           onPress={() => setHasBalanceOnly(false)}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.tabFilterText, !hasBalanceOnly && styles.tabFilterTextActive]}>
-            All Customers
+          <Text style={[styles.filterPillText, !hasBalanceOnly && styles.filterPillTextActive]}>
+            All Clientele
           </Text>
         </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.tabFilterBtn, hasBalanceOnly && styles.tabFilterBtnActive]}
+          style={[styles.filterPill, hasBalanceOnly && styles.filterPillActive]}
           onPress={() => setHasBalanceOnly(true)}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.tabFilterText, hasBalanceOnly && styles.tabFilterTextActive]}>
-            Credit Due Only
+          <Text style={[styles.filterPillText, hasBalanceOnly && styles.filterPillTextActive]}>
+            Due Credit Balances
           </Text>
         </TouchableOpacity>
       </View>
 
-      {customers.length === 0 && !loading ? (
-        <EmptyState
-          icon="people-outline"
-          title="No customers found"
-          description="Register customers to track credit sales, order history, and installments."
-          actionTitle="Add Customer"
-          onAction={openAddModal}
-        />
-      ) : (
-        <FlatList
-          data={customers}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <Card
-              style={styles.card}
-              onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id })}
-            >
-              <View style={styles.row}>
-                <View style={styles.leftCol}>
-                  <Text style={styles.name}>{item.name}</Text>
-                  {item.phone ? <Text style={styles.metaText}>Tel: {item.phone}</Text> : null}
-                  <Text style={styles.orderCount}>
-                    {item.total_orders} order{item.total_orders !== 1 ? 's' : ''}
+      <FlatList
+        data={customers}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => {
+          const hasBalance = item.current_balance > 0;
+          return (
+            <Card style={styles.customerCard}>
+              <TouchableOpacity
+                style={styles.cardPressable}
+                onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarInitial}>
+                    {(item.name || 'C').charAt(0).toUpperCase()}
                   </Text>
                 </View>
 
-                <View style={styles.rightCol}>
-                  {item.outstanding_balance > 0 ? (
-                    <View style={styles.dueBadge}>
-                      <Text style={styles.dueLabel}>Credit Due</Text>
-                      <Text style={styles.dueAmount}>
-                        {formatCurrency(item.outstanding_balance, currencySymbol)}
+                <View style={styles.customerInfo}>
+                  <Text style={styles.customerName}>{item.name}</Text>
+                  {item.phone ? (
+                    <Text style={styles.customerPhone}>
+                      <Ionicons name="call-outline" size={12} color={COLORS.textTertiary} /> {item.phone}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.spentText}>
+                    Total Purchases: {formatCurrency(item.total_spent || 0, currencySymbol)}
+                  </Text>
+                </View>
+
+                <View style={styles.balanceCol}>
+                  {hasBalance ? (
+                    <View style={styles.balancePill}>
+                      <Text style={styles.balanceLabel}>Due Balance</Text>
+                      <Text style={styles.balanceVal}>
+                        {formatCurrency(item.current_balance, currencySymbol)}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={styles.noDueText}>No Balance Due</Text>
+                    <View style={styles.settledPill}>
+                      <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+                      <Text style={styles.settledText}>Settled</Text>
+                    </View>
                   )}
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} style={{ marginTop: 8 }} />
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} style={styles.chev} />
                 </View>
-              </View>
+              </TouchableOpacity>
             </Card>
-          )}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+          );
+        }}
+        ListEmptyComponent={
+          !loading && (
+            <EmptyState
+              icon="people-outline"
+              title="No Clientele Found"
+              subtitle="Add your regular customers to track personalized sizing, sales history, and credit."
+              actionLabel="Add Customer"
+              onAction={openAddModal}
+            />
+          )
+        }
+      />
 
-      {/* Customer Modal */}
+      {/* Add / Edit Customer Modal */}
       <ModalSheet
         visible={showModal}
         onClose={() => setShowModal(false)}
-        title={editingId ? 'Edit Customer' : 'Add Customer'}
-        subtitle="Customer contact and store credit ledger profile"
+        title={editingId ? 'Edit Customer' : 'Add New VIP Customer'}
+        subtitle="Manage client profile and contact notes"
       >
         <Input
           label="Customer Full Name *"
           value={name}
           onChangeText={setName}
-          placeholder="e.g. Tayyab Khan"
+          placeholder="e.g. Ayesha Khan"
         />
 
         <Input
-          label="Phone Number"
+          label="Mobile Phone / WhatsApp"
           value={phone}
           onChangeText={setPhone}
-          placeholder="e.g. 0300 1234567"
+          placeholder="e.g. +92 300 1234567"
           keyboardType="phone-pad"
         />
 
         <Input
-          label="Customer Notes"
+          label="Preferences / Sizing Notes"
           value={notes}
           onChangeText={setNotes}
-          placeholder="e.g. Preferred sizes, boutique member, special discounts"
+          placeholder="e.g. Prefers Medium, silk fabrics only."
           multiline
           numberOfLines={2}
         />
 
         <Button
-          title={editingId ? 'Save Changes' : 'Create Customer'}
+          title="Save Customer Profile"
           variant="primary"
           loading={saving}
           onPress={handleSave}
-          style={{ marginTop: 12 }}
+          style={styles.modalBtn}
         />
       </ModalSheet>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.md,
-  },
-  addBtnText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textInverse,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
   searchSection: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
     paddingBottom: SPACING.xs,
   },
-  tabFilterRow: {
+  filterRow: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.sm,
+    gap: 8,
+    marginVertical: SPACING.sm,
   },
-  tabFilterBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
-    marginRight: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  tabFilterBtnActive: {
+  filterPillActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
-  tabFilterText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
-    fontWeight: '600',
+  filterPillText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
   },
-  tabFilterTextActive: {
+  filterPillTextActive: {
     color: COLORS.textInverse,
   },
   listContent: {
     padding: SPACING.lg,
+    paddingBottom: SPACING.xxxl,
   },
-  card: {
-    padding: SPACING.md,
+  customerCard: {
     marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
   },
-  row: {
+  cardPressable: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  leftCol: {
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primarySurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  avatarInitial: {
+    ...TYPOGRAPHY.bodyLarge,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  customerInfo: {
     flex: 1,
   },
-  name: {
+  customerName: {
     ...TYPOGRAPHY.bodyMedium,
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  metaText: {
-    ...TYPOGRAPHY.caption,
+  customerPhone: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginTop: 2,
+  },
+  spentText: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  orderCount: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textTertiary,
-    marginTop: 4,
+  balanceCol: {
+    alignItems: 'flex-end',
+    gap: 4,
   },
-  rightCol: {
+  balancePill: {
     alignItems: 'flex-end',
   },
-  dueBadge: {
-    alignItems: 'flex-end',
-  },
-  dueLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.warning,
-    fontSize: 10,
+  balanceLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.danger,
     fontWeight: '700',
+    fontSize: 10,
+    textTransform: 'uppercase',
   },
-  dueAmount: {
+  balanceVal: {
     ...TYPOGRAPHY.bodySmall,
     fontWeight: '800',
-    color: COLORS.warning,
+    color: COLORS.danger,
   },
-  noDueText: {
-    ...TYPOGRAPHY.caption,
+  settledPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  settledText: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.success,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  chev: {
+    marginTop: 2,
+  },
+  modalBtn: {
+    marginTop: SPACING.md,
+    borderRadius: RADIUS.pill,
   },
 });

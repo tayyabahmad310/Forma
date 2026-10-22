@@ -4,10 +4,11 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 
 export default function PinLockScreen() {
   const { unlock } = useAuth();
@@ -26,22 +27,11 @@ export default function PinLockScreen() {
       setPin(nextPin);
 
       if (nextPin.length >= 4) {
-        // Attempt unlock if 4 or more digits
         const success = await unlock(nextPin);
         if (!success && nextPin.length === 6) {
           setError('Incorrect PIN. Please try again.');
           setPin('');
         }
-      }
-    }
-  };
-
-  const handleManualUnlockAttempt = async () => {
-    if (pin.length >= 4) {
-      const success = await unlock(pin);
-      if (!success) {
-        setError('Incorrect PIN. Please try again.');
-        setPin('');
       }
     }
   };
@@ -64,98 +54,79 @@ export default function PinLockScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.brandIcon}>
-          <Ionicons name="lock-closed-outline" size={32} color={COLORS.primary} />
-        </View>
-        <Text style={styles.title}>Clothio Business Security</Text>
-        <Text style={styles.subtitle}>Enter your secure PIN to access records</Text>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.brandIconCircle}>
+            <Ionicons name="lock-closed" size={32} color={COLORS.primary} />
+          </View>
+          <Text style={styles.title}>Clothio Security</Text>
+          <Text style={styles.subtitle}>Enter boutique manager PIN to unlock</Text>
 
-        {/* PIN Dots */}
-        <View style={styles.dotsRow}>
-          {[0, 1, 2, 3].map((idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.dot,
-                pin.length > idx && styles.dotFilled,
-                error && styles.dotError,
-              ]}
-            />
-          ))}
+          {/* PIN Dots */}
+          <View style={styles.dotsRow}>
+            {[0, 1, 2, 3, 4, 5].map((idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.dot,
+                  idx < pin.length && styles.dotFilled,
+                  error ? styles.dotError : null,
+                ]}
+              />
+            ))}
+          </View>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      </View>
-
-      {/* Keypad */}
-      <View style={styles.keypad}>
-        <View style={styles.keyRow}>
-          {renderKey('1')}
-          {renderKey('2')}
-          {renderKey('3')}
-        </View>
-        <View style={styles.keyRow}>
-          {renderKey('4')}
-          {renderKey('5')}
-          {renderKey('6')}
-        </View>
-        <View style={styles.keyRow}>
-          {renderKey('7')}
-          {renderKey('8')}
-          {renderKey('9')}
-        </View>
-        <View style={styles.keyRow}>
-          <TouchableOpacity
-            style={styles.keyButton}
-            onPress={handleManualUnlockAttempt}
-            disabled={pin.length < 4}
-          >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={26}
-              color={pin.length >= 4 ? COLORS.success : COLORS.textTertiary}
-            />
-          </TouchableOpacity>
-          {renderKey('0')}
-          {renderKey('backspace', 'backspace-outline')}
+        {/* Numpad */}
+        <View style={styles.keypad}>
+          <View style={styles.keyRow}>
+            {['1', '2', '3'].map((k) => renderKey(k))}
+          </View>
+          <View style={styles.keyRow}>
+            {['4', '5', '6'].map((k) => renderKey(k))}
+          </View>
+          <View style={styles.keyRow}>
+            {['7', '8', '9'].map((k) => renderKey(k))}
+          </View>
+          <View style={styles.keyRow}>
+            <View style={styles.emptyKey} />
+            {renderKey('0')}
+            {renderKey('backspace', 'backspace-outline')}
+          </View>
         </View>
       </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.warningText}>
-          Offline security: PIN is verified locally. Keep your PIN in a secure place.
-        </Text>
-      </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xxl,
   },
   header: {
     alignItems: 'center',
-    paddingTop: SPACING.xxxl,
+    marginTop: SPACING.xl,
   },
-  brandIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.surfaceSubtle,
+  brandIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.primarySurface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
   title: {
     ...TYPOGRAPHY.h2,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
+    marginBottom: 4,
   },
   subtitle: {
     ...TYPOGRAPHY.bodySmall,
@@ -164,17 +135,16 @@ const styles = StyleSheet.create({
   },
   dotsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: SPACING.lg,
+    gap: 12,
+    marginVertical: SPACING.md,
   },
   dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 2,
-    borderColor: COLORS.borderDark,
-    marginHorizontal: SPACING.sm,
+    borderColor: COLORS.border,
+    backgroundColor: 'transparent',
   },
   dotFilled: {
     backgroundColor: COLORS.primary,
@@ -187,39 +157,35 @@ const styles = StyleSheet.create({
   errorText: {
     ...TYPOGRAPHY.caption,
     color: COLORS.danger,
-    fontWeight: '600',
-    marginTop: SPACING.xs,
+    fontWeight: '700',
+    marginTop: SPACING.sm,
   },
   keypad: {
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
+    gap: 14,
   },
   keyRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: SPACING.md,
+    justifyContent: 'space-evenly',
+    gap: 14,
   },
   keyButton: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: COLORS.surfaceSubtle,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.xs,
   },
   keyText: {
-    fontSize: 24,
-    fontWeight: '600',
+    ...TYPOGRAPHY.h2,
     color: COLORS.textPrimary,
   },
-  footer: {
-    alignItems: 'center',
-    paddingBottom: SPACING.xl,
-  },
-  warningText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textTertiary,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.lg,
+  emptyKey: {
+    width: 72,
+    height: 72,
   },
 });

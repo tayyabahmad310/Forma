@@ -1,5 +1,6 @@
 /**
- * Reusable Status & Tag Badge Component
+ * Luxury Fashion Badge Component
+ * Delicate pill badge with warm tinted surfaces.
  */
 
 import React from 'react';
@@ -8,42 +9,64 @@ import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
 
 export default function Badge({
   label,
-  variant = 'default', // 'success' | 'warning' | 'danger' | 'info' | 'default'
+  variant = 'default', // 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default'
   size = 'md', // 'sm' | 'md'
-  style = null,
+  style,
+  textStyle,
 }) {
   const getBadgeStyle = () => {
     switch (variant) {
+      case 'primary':
+        return {
+          container: styles.primaryBadge,
+          text: styles.primaryText,
+        };
       case 'success':
-        return { bg: COLORS.successLight, text: COLORS.successText };
+        return {
+          container: styles.successBadge,
+          text: styles.successText,
+        };
       case 'warning':
-        return { bg: COLORS.warningLight, text: COLORS.warningText };
+        return {
+          container: styles.warningBadge,
+          text: styles.warningText,
+        };
       case 'danger':
-        return { bg: COLORS.dangerLight, text: COLORS.dangerText };
+        return {
+          container: styles.dangerBadge,
+          text: styles.dangerText,
+        };
       case 'info':
-        return { bg: COLORS.infoLight, text: COLORS.infoText };
+        return {
+          container: styles.infoBadge,
+          text: styles.infoText,
+        };
       case 'default':
       default:
-        return { bg: COLORS.surfaceSubtle, text: COLORS.textSecondary };
+        return {
+          container: styles.defaultBadge,
+          text: styles.defaultText,
+        };
     }
   };
 
-  const { bg, text } = getBadgeStyle();
+  const badgeStyle = getBadgeStyle();
 
   return (
     <View
       style={[
-        styles.badge,
-        { backgroundColor: bg },
-        size === 'sm' && styles.badgeSm,
+        styles.baseBadge,
+        size === 'sm' ? styles.smBadge : styles.mdBadge,
+        badgeStyle.container,
         style,
       ]}
     >
       <Text
         style={[
-          styles.text,
-          { color: text },
-          size === 'sm' && styles.textSm,
+          styles.baseText,
+          size === 'sm' ? styles.smText : styles.mdText,
+          badgeStyle.text,
+          textStyle,
         ]}
       >
         {label}
@@ -53,24 +76,72 @@ export default function Badge({
 }
 
 const styles = StyleSheet.create({
-  badge: {
-    paddingHorizontal: SPACING.sm + 2,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
+  baseBadge: {
+    borderRadius: RADIUS.pill,
     alignSelf: 'flex-start',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeSm: {
-    paddingHorizontal: SPACING.xs + 2,
-    paddingVertical: 1,
-  },
-  text: {
-    ...TYPOGRAPHY.caption,
+  baseText: {
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
-  textSm: {
+  smBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  smText: {
     fontSize: 10,
-    lineHeight: 12,
+    lineHeight: 14,
+  },
+  mdBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  mdText: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+
+  primaryBadge: {
+    backgroundColor: COLORS.primarySurface,
+  },
+  primaryText: {
+    color: COLORS.primary,
+  },
+
+  successBadge: {
+    backgroundColor: COLORS.successLight,
+  },
+  successText: {
+    color: COLORS.successText,
+  },
+
+  warningBadge: {
+    backgroundColor: COLORS.warningLight,
+  },
+  warningText: {
+    color: COLORS.warningText,
+  },
+
+  dangerBadge: {
+    backgroundColor: COLORS.dangerLight,
+  },
+  dangerText: {
+    color: COLORS.dangerText,
+  },
+
+  infoBadge: {
+    backgroundColor: COLORS.infoLight,
+  },
+  infoText: {
+    color: COLORS.infoText,
+  },
+
+  defaultBadge: {
+    backgroundColor: COLORS.surfaceSubtle,
+  },
+  defaultText: {
+    color: COLORS.textSecondary,
   },
 });

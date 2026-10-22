@@ -1,6 +1,8 @@
 /**
- * Business Dashboard Screen
- * High-level operational overview: sales, profit, inventory value, alerts, and quick actions.
+ * Luxury Fashion Boutique Dashboard Screen
+ * Directly embodies the reference design:
+ * Location/Boutique header, search bar with filter, promo hero banner,
+ * horizontal category avatars, daily financial stat cards, and 2-column clothing grid.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,510 +13,596 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  SafeAreaView,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../context/AppContext';
-import { getDashboardData } from '../../repositories/reportRepository';
-import { formatCurrency } from '../../utils/currency';
-import { formatDate } from '../../utils/date';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
+import SearchBar from '../../components/common/SearchBar';
 import StatCard from '../../components/common/StatCard';
-import Card from '../../components/common/Card';
+import ProductCard from '../../components/product/ProductCard';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
+import { useApp } from '../../context/AppContext';
+import { getDashboardData } from '../../repositories/reportRepository';
+import { getProductsPaginated } from '../../repositories/productRepository';
+import { getAllCategories } from '../../repositories/categoryRepository';
+import { formatCurrency } from '../../utils/currency';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+
+const { width } = Dimensions.get('window');
+
+const CATEGORY_ICONS = [
+  { id: null, name: 'All', icon: 'grid-outline' },
+  { id: 1, name: 'Shirts', icon: 'shirt-outline' },
+  { id: 2, name: 'Trousers', icon: 'cut-outline' },
+  { id: 3, name: 'T-Shirts', icon: 'color-palette-outline' },
+  { id: 4, name: 'Dresses', icon: 'rose-outline' },
+  { id: 5, name: 'Outerwear', icon: 'umbrella-outline' },
+  { id: 6, name: 'Formal', icon: 'sparkles-outline' },
+  { id: 7, name: 'Traditional', icon: 'ribbon-outline' },
+  { id: 8, name: 'Accessories', icon: 'watch-outline' },
+];
 
 export default function DashboardScreen({ navigation }) {
   const { currencySymbol, businessName, dataVersion } = useApp();
-  const [data, setData] = useState(null);
+
+  const [dashboardData, setDashboardData] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     try {
-      const result = await getDashboardData();
-      setData(result);
+      const [dashResult, prodResult, catResult] = await Promise.all([
+        getDashboardData(),
+        getProductsPaginated({ limit: 10, categoryId: selectedCategory, search: searchQuery }),
+        getAllCategories(),
+      ]);
+      setDashboardData(dashResult);
+      setProducts(prodResult.items || []);
+      setCategories(catResult || []);
     } catch (err) {
-      console.warn('Error loading dashboard data:', err);
+      console.warn('Dashboard load error:', err);
     }
-  }, []);
+  }, [selectedCategory, searchQuery]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData, dataVersion]);
+    loadAll();
+  }, [loadAll, dataVersion]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadAll();
     setRefreshing(false);
   };
 
-  const today = data?.today || {};
-  const inventory = data?.inventory || {};
-  const lowStockAlerts = data?.lowStockAlerts || [];
-  const recentSales = data?.recentSales || [];
+  const today = dashboardData?.today || {};
+  const inventory = dashboardData?.inventory || {};
+  const lowStockAlerts = dashboardData?.lowStockAlerts || [];
+  const recentSales = dashboardData?.recentSales || [];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe={false}>
+      {/* Top Location / Boutique Name Bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.locationSelector}
+          onPress={() => navigation.navigate('SettingsTab')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="location" size={18} color={COLORS.primary} style={styles.locIcon} />
+          <View>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationRow}>
+              <Text style={styles.locationName} numberOfLines={1}>
+                {businessName}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={COLORS.textPrimary} />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.notificationBtn}
+          onPress={() => navigation.navigate('SettingsTab')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={20} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Profile */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.businessTitle}>{businessName}</Text>
-            <Text style={styles.subtitle}>Daily Operations & POS Overview</Text>
+        {/* Search Bar with Filter Button */}
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search products, SKU, categories..."
+          onFilterPress={() => navigation.navigate('ProductsTab')}
+          style={styles.searchBar}
+        />
+
+        {/* Hero Promo Banner (Warm Sand/Mocha Card matching reference image) */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroContent}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>POS QUICK SALE</Text>
+            </View>
+            <Text style={styles.heroTitle}>Boutique Checkout</Text>
+            <Text style={styles.heroSubtitle}>
+              Tap, ring up variants, and generate printable receipts instantly.
+            </Text>
+            <TouchableOpacity
+              style={styles.heroCta}
+              onPress={() => navigation.navigate('POSTab')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.heroCtaText}>Open POS</Text>
+              <Ionicons name="arrow-forward" size={14} color={COLORS.textInverse} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.settingsBtn}
-            onPress={() => navigation.navigate('SettingsTab')}
-          >
-            <Ionicons name="settings-outline" size={20} color={COLORS.textPrimary} />
+          <View style={styles.heroArtCircle}>
+            <Ionicons name="bag-handle" size={44} color={COLORS.primary} />
+          </View>
+        </View>
+
+        {/* Categories Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Categories</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('ProductsTab')}>
+            <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Quick Actions Bar */}
-        <View style={styles.quickActionsContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryScroll}
+        >
+          {CATEGORY_ICONS.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id || 'all'}
+                style={styles.categoryItem}
+                onPress={() => setSelectedCategory(cat.id)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.categoryAvatar,
+                    isSelected && styles.categoryAvatarActive,
+                  ]}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={20}
+                    color={isSelected ? COLORS.textInverse : COLORS.primary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.categoryText,
+                    isSelected && styles.categoryTextActive,
+                  ]}
+                >
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Daily Operations & Business Financial Pulse */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Today's Operations</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('ReportsTab')}>
+            <Text style={styles.seeAllText}>Full Reports</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <StatCard
+            title="Today's Sales"
+            value={formatCurrency(today.net_sales || 0, currencySymbol)}
+            subtitle={`${today.sale_count || 0} orders today`}
+            icon="receipt-outline"
+            variant="primary"
+            style={styles.statCardHalf}
+          />
+          <StatCard
+            title="Estimated Profit"
+            value={formatCurrency(today.estimated_profit || 0, currencySymbol)}
+            subtitle="Gross Margin"
+            icon="trending-up-outline"
+            variant="success"
+            style={styles.statCardHalf}
+          />
+        </View>
+
+        {/* Quick Operations Row */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickOpsRow}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.posActionButton]}
+            style={styles.quickOpChip}
             onPress={() => navigation.navigate('POSTab')}
             activeOpacity={0.8}
           >
-            <View style={styles.actionIconCirclePrimary}>
-              <Ionicons name="cash" size={20} color={COLORS.textInverse} />
-            </View>
-            <Text style={styles.actionButtonTextPrimary}>New Sale</Text>
+            <Ionicons name="card-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>New Sale</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('ProductForm', {})}
+            style={styles.quickOpChip}
+            onPress={() => navigation.navigate('PurchaseForm')}
             activeOpacity={0.8}
           >
-            <View style={styles.actionIconCircle}>
-              <Ionicons name="shirt-outline" size={18} color={COLORS.primary} />
-            </View>
-            <Text style={styles.actionButtonText}>Add Product</Text>
+            <Ionicons name="add-circle-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>Inward Stock</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('PurchaseForm', {})}
-            activeOpacity={0.8}
-          >
-            <View style={styles.actionIconCircle}>
-              <Ionicons name="cart-outline" size={18} color={COLORS.primary} />
-            </View>
-            <Text style={styles.actionButtonText}>Add Purchase</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
+            style={styles.quickOpChip}
             onPress={() => navigation.navigate('ExpensesScreen')}
             activeOpacity={0.8}
           >
-            <View style={styles.actionIconCircle}>
-              <Ionicons name="receipt-outline" size={18} color={COLORS.primary} />
-            </View>
-            <Text style={styles.actionButtonText}>Add Expense</Text>
+            <Ionicons name="wallet-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>Expenses</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Today's Key Metrics */}
-        <Text style={styles.sectionHeader}>Today's Snapshot</Text>
-        <View style={styles.gridRow}>
-          <StatCard
-            title="Today's Sales"
-            value={formatCurrency(today.netSales || 0, currencySymbol)}
-            subtitle={`${today.transactionCount || 0} order${today.transactionCount !== 1 ? 's' : ''}`}
-            icon="cart"
-            iconColor={COLORS.info}
-            iconBg={COLORS.infoLight}
+          <TouchableOpacity
+            style={styles.quickOpChip}
+            onPress={() => navigation.navigate('CustomerList')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="people-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>Clientele</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickOpChip}
             onPress={() => navigation.navigate('SalesHistory')}
-          />
-          <StatCard
-            title="Today's Profit"
-            value={formatCurrency(today.netOperatingProfit || 0, currencySymbol)}
-            subtitle={`Gross: ${formatCurrency(today.grossProfit || 0, currencySymbol)}`}
-            icon="trending-up"
-            iconColor={today.netOperatingProfit >= 0 ? COLORS.success : COLORS.danger}
-            iconBg={today.netOperatingProfit >= 0 ? COLORS.successLight : COLORS.dangerLight}
-            onPress={() => navigation.navigate('ReportsTab')}
-          />
+            activeOpacity={0.8}
+          >
+            <Ionicons name="receipt-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>Invoices</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickOpChip}
+            onPress={() => navigation.navigate('SupplierList')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="business-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickOpText}>Vendors</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* 2-Column Product Grid (Featured Boutique Collection) */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Boutique Inventory</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('ProductForm', {})}>
+            <Text style={styles.seeAllText}>+ Add Product</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.gridRow}>
-          <StatCard
-            title="Today's Expenses"
-            value={formatCurrency(today.operatingExpenses || 0, currencySymbol)}
-            icon="wallet"
-            iconColor={COLORS.danger}
-            iconBg={COLORS.dangerLight}
-            onPress={() => navigation.navigate('ExpensesScreen')}
+        {products.length === 0 ? (
+          <EmptyState
+            icon="shirt-outline"
+            title="No Products Found"
+            message={
+              searchQuery
+                ? 'No items matched your search query.'
+                : 'Your store inventory is empty. Tap "+ Add Product" or use the Setup Wizard to get started!'
+            }
+            actionLabel="+ Add First Product"
+            onAction={() => navigation.navigate('ProductForm', {})}
           />
-          <StatCard
-            title="Customer Credit"
-            value={formatCurrency(data?.totalCustomerReceivables || 0, currencySymbol)}
-            subtitle="Outstanding balance"
-            icon="people"
-            iconColor={COLORS.warning}
-            iconBg={COLORS.warningLight}
-            onPress={() => navigation.navigate('CustomerList', { filter: 'balance' })}
-          />
-        </View>
-
-        {/* Inventory Overview Card */}
-        <Card style={styles.inventoryCard} onPress={() => navigation.navigate('ProductsTab')}>
-          <View style={styles.inventoryHeader}>
-            <View>
-              <Text style={styles.cardHeaderTitle}>Inventory Valuation</Text>
-              <Text style={styles.cardHeaderSubtitle}>
-                {inventory.totalProducts || 0} products • {inventory.totalUnitsInStock || 0} units in stock
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
-          </View>
-
-          <View style={styles.inventoryMetricsRow}>
-            <View style={styles.invMetric}>
-              <Text style={styles.invMetricLabel}>Cost Value</Text>
-              <Text style={styles.invMetricValue}>
-                {formatCurrency(inventory.totalCostValue || 0, currencySymbol)}
-              </Text>
-            </View>
-            <View style={styles.invDivider} />
-            <View style={styles.invMetric}>
-              <Text style={styles.invMetricLabel}>Retail Value</Text>
-              <Text style={styles.invMetricValue}>
-                {formatCurrency(inventory.totalRetailValue || 0, currencySymbol)}
-              </Text>
-            </View>
-            <View style={styles.invDivider} />
-            <View style={styles.invMetric}>
-              <Text style={styles.invMetricLabel}>Low Stock Items</Text>
-              <Text
-                style={[
-                  styles.invMetricValue,
-                  (inventory.lowStockCount || 0) > 0 && { color: COLORS.warning },
-                ]}
-              >
-                {inventory.lowStockCount || 0}
-              </Text>
-            </View>
-          </View>
-        </Card>
-
-        {/* Low Stock Alerts */}
-        {lowStockAlerts.length > 0 && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionHeader}>Low Stock Warnings</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('ProductsTab', { filter: 'low_stock' })}>
-                <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
-            </View>
-
-            {lowStockAlerts.map((item) => (
-              <Card
-                key={item.id}
-                style={styles.alertCard}
-                onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-              >
-                <View style={styles.alertRow}>
-                  <View style={styles.alertIconCircle}>
-                    <Ionicons name="alert-circle" size={20} color={COLORS.warning} />
-                  </View>
-                  <View style={styles.alertInfo}>
-                    <Text style={styles.alertTitle} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.alertSubtitle}>
-                      Alert threshold: {item.min_stock_alert} units
-                    </Text>
-                  </View>
-                  <Badge
-                    label={`${item.current_stock} left`}
-                    variant={item.current_stock === 0 ? 'danger' : 'warning'}
-                  />
-                </View>
-              </Card>
+        ) : (
+          <View style={styles.productsGrid}>
+            {products.map((item) => (
+              <View key={item.id} style={styles.productCardWrapper}>
+                <ProductCard
+                  product={item}
+                  currencySymbol={currencySymbol}
+                  onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+                  onQuickAdd={() => navigation.navigate('POSTab', { selectProductId: item.id })}
+                />
+              </View>
             ))}
           </View>
         )}
 
-        {/* Recent Transactions */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionHeader}>Recent Sales</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SalesHistory')}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Low Stock Alerts (if any) */}
+        {lowStockAlerts.length > 0 && (
+          <View style={styles.alertSection}>
+            <View style={styles.alertHeaderRow}>
+              <View style={styles.alertTitleRow}>
+                <Ionicons name="warning-outline" size={18} color={COLORS.warning} />
+                <Text style={styles.alertSectionTitle}>Low Stock Warning</Text>
+              </View>
+              <Badge label={`${lowStockAlerts.length} items`} variant="warning" size="sm" />
+            </View>
 
-          {recentSales.length === 0 ? (
-            <EmptyState
-              icon="cart-outline"
-              title="No sales recorded yet"
-              description="Open POS to start processing customer sales orders."
-              actionTitle="Open POS"
-              onAction={() => navigation.navigate('POSTab')}
-            />
-          ) : (
-            recentSales.map((sale) => (
-              <Card
-                key={sale.id}
-                style={styles.recentSaleCard}
-                onPress={() => navigation.navigate('SaleDetail', { saleId: sale.id })}
+            {lowStockAlerts.slice(0, 3).map((alert) => (
+              <TouchableOpacity
+                key={alert.variant_id}
+                style={styles.alertRow}
+                onPress={() => navigation.navigate('StockAdjustment', { variantId: alert.variant_id })}
+                activeOpacity={0.7}
               >
-                <View style={styles.saleRow}>
-                  <View style={styles.saleLeft}>
-                    <Text style={styles.saleInvoice}>{sale.invoice_number}</Text>
-                    <Text style={styles.saleCustomer}>
-                      {sale.customer_name_snapshot || 'Walk-in Customer'} • {formatDate(sale.sale_date)}
-                    </Text>
-                  </View>
-                  <View style={styles.saleRight}>
-                    <Text style={styles.saleTotal}>
-                      {formatCurrency(sale.total_amount, currencySymbol)}
-                    </Text>
-                    <Badge
-                      label={sale.payment_status}
-                      variant={
-                        sale.payment_status === 'PAID'
-                          ? 'success'
-                          : sale.payment_status === 'PARTIAL'
-                          ? 'warning'
-                          : 'danger'
-                      }
-                      size="sm"
-                    />
-                  </View>
+                <View>
+                  <Text style={styles.alertProductName}>{alert.product_name}</Text>
+                  <Text style={styles.alertVariantText}>
+                    Size: {alert.size || 'N/A'} • Color: {alert.color || 'N/A'}
+                  </Text>
                 </View>
-              </Card>
-            ))
-          )}
-        </View>
+                <View style={styles.alertStockBox}>
+                  <Text style={styles.alertStockText}>{alert.stock} left</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
     backgroundColor: COLORS.background,
   },
-  container: {
+  locationSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  contentContainer: {
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xxxl,
+  locIcon: {
+    marginRight: SPACING.sm,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  businessTitle: {
-    ...TYPOGRAPHY.h2,
-    color: COLORS.textPrimary,
-  },
-  subtitle: {
+  locationLabel: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    color: COLORS.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  settingsBtn: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationName: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textPrimary,
+    maxWidth: 220,
+  },
+  notificationBtn: {
     width: 40,
     height: 40,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    ...SHADOWS.subtle,
   },
-  quickActionsContainer: {
+  scrollContent: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: 90, // Room for floating bottom tab bar
+  },
+  searchBar: {
+    marginBottom: SPACING.lg,
+  },
+  heroBanner: {
+    backgroundColor: COLORS.bannerCard,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xl,
-  },
-  actionButton: {
-    flex: 1,
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
-    marginHorizontal: 3,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xxl,
+    overflow: 'hidden',
+    ...SHADOWS.card,
   },
-  posActionButton: {
+  heroContent: {
+    flex: 1,
+    marginRight: SPACING.md,
+  },
+  heroBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.pill,
+    alignSelf: 'flex-start',
+    marginBottom: SPACING.xs,
+  },
+  heroBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+  heroTitle: {
+    ...TYPOGRAPHY.h2,
+    color: COLORS.bannerCardText,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.bannerCardText,
+    opacity: 0.85,
+    marginBottom: SPACING.md,
+    lineHeight: 15,
+  },
+  heroCta: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  heroCtaText: {
+    color: COLORS.textInverse,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroArtCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+  },
+  sectionTitle: {
+    ...TYPOGRAPHY.h2,
+    fontSize: 18,
+    color: COLORS.textPrimary,
+  },
+  seeAllText: {
+    ...TYPOGRAPHY.bodySmallMedium,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  categoryScroll: {
+    paddingBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    width: 64,
+  },
+  categoryAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    ...SHADOWS.subtle,
+  },
+  categoryAvatarActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
-  actionIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  actionIconCirclePrimary: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  actionButtonText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
-    fontWeight: '600',
-  },
-  actionButtonTextPrimary: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textInverse,
-    fontWeight: '700',
-  },
-  sectionHeader: {
-    ...TYPOGRAPHY.h3,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  viewAllText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.accent,
-    fontWeight: '600',
-  },
-  gridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
-  },
-  inventoryCard: {
-    marginVertical: SPACING.sm,
-    padding: SPACING.lg,
-  },
-  inventoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  cardHeaderTitle: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  cardHeaderSubtitle: {
+  categoryText: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    textAlign: 'center',
+    fontSize: 11,
   },
-  inventoryMetricsRow: {
+  categoryTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    gap: SPACING.md,
+    marginBottom: SPACING.xxl,
   },
-  invMetric: {
+  statCardHalf: {
     flex: 1,
+  },
+  quickOpsRow: {
+    gap: 8,
+    paddingBottom: SPACING.lg,
+  },
+  quickOpChip: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
   },
-  invMetricLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-  },
-  invMetricValue: {
-    ...TYPOGRAPHY.bodyMedium,
+  quickOpText: {
+    ...TYPOGRAPHY.captionSmall,
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  invDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: COLORS.borderLight,
+  productsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+    marginBottom: SPACING.xl,
   },
-  sectionContainer: {
-    marginTop: SPACING.lg,
+  productCardWrapper: {
+    width: (width - SPACING.xl * 2 - SPACING.md) / 2,
   },
-  alertCard: {
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
+  alertSection: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
     borderColor: COLORS.warningLight,
+    marginBottom: SPACING.xl,
+    ...SHADOWS.subtle,
+  },
+  alertHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+  },
+  alertTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  alertSectionTitle: {
+    ...TYPOGRAPHY.h3,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
   alertRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  alertIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.warningLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.md,
-  },
-  alertInfo: {
-    flex: 1,
-  },
-  alertTitle: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
-  alertSubtitle: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-  },
-  recentSaleCard: {
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  saleRow: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
   },
-  saleLeft: {
-    flex: 1,
-  },
-  saleInvoice: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '600',
+  alertProductName: {
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 13,
     color: COLORS.textPrimary,
   },
-  saleCustomer: {
+  alertVariantText: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    color: COLORS.textTertiary,
   },
-  saleRight: {
-    alignItems: 'flex-end',
+  alertStockBox: {
+    backgroundColor: COLORS.dangerLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.pill,
   },
-  saleTotal: {
-    ...TYPOGRAPHY.bodyMedium,
+  alertStockText: {
+    ...TYPOGRAPHY.caption,
     fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 4,
+    color: COLORS.dangerText,
   },
 });

@@ -1,81 +1,100 @@
 /**
- * Reusable Button Component
+ * Luxury Fashion Pill Button Component
+ * Rounded pill shape, warm terracotta/cognac solid & charcoal variants, smooth touch feedback.
  */
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 
 export default function Button({
   title,
   onPress,
-  variant = 'primary', // 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
+  variant = 'primary', // 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
   size = 'md', // 'sm' | 'md' | 'lg'
   icon = null,
   iconPosition = 'left',
   loading = false,
   disabled = false,
-  style = null,
-  textStyle = null,
+  style,
+  textStyle,
 }) {
-  const getButtonStyles = () => {
+  const getVariantStyles = () => {
     switch (variant) {
       case 'secondary':
-        return styles.secondaryButton;
+        return {
+          button: styles.secondaryButton,
+          text: styles.secondaryText,
+          iconColor: COLORS.textInverse,
+        };
       case 'outline':
-        return styles.outlineButton;
-      case 'danger':
-        return styles.dangerButton;
+        return {
+          button: styles.outlineButton,
+          text: styles.outlineText,
+          iconColor: COLORS.primary,
+        };
       case 'ghost':
-        return styles.ghostButton;
+        return {
+          button: styles.ghostButton,
+          text: styles.ghostText,
+          iconColor: COLORS.textPrimary,
+        };
+      case 'danger':
+        return {
+          button: styles.dangerButton,
+          text: styles.dangerText,
+          iconColor: COLORS.textInverse,
+        };
       case 'primary':
       default:
-        return styles.primaryButton;
-    }
-  };
-
-  const getTextStyles = () => {
-    switch (variant) {
-      case 'secondary':
-        return styles.secondaryText;
-      case 'outline':
-        return styles.outlineText;
-      case 'danger':
-        return styles.dangerText;
-      case 'ghost':
-        return styles.ghostText;
-      case 'primary':
-      default:
-        return styles.primaryText;
+        return {
+          button: styles.primaryButton,
+          text: styles.primaryText,
+          iconColor: COLORS.textInverse,
+        };
     }
   };
 
   const getSizeStyles = () => {
     switch (size) {
       case 'sm':
-        return styles.smButton;
+        return {
+          button: styles.smButton,
+          text: styles.smText,
+          iconSize: 16,
+        };
       case 'lg':
-        return styles.lgButton;
+        return {
+          button: styles.lgButton,
+          text: styles.lgText,
+          iconSize: 22,
+        };
       case 'md':
       default:
-        return styles.mdButton;
+        return {
+          button: styles.mdButton,
+          text: styles.mdText,
+          iconSize: 18,
+        };
     }
   };
 
-  const iconColor =
-    variant === 'primary' || variant === 'danger'
-      ? COLORS.textInverse
-      : variant === 'outline'
-      ? COLORS.textPrimary
-      : COLORS.textPrimary;
+  const variantStyle = getVariantStyles();
+  const sizeStyle = getSizeStyles();
 
   return (
     <TouchableOpacity
       style={[
         styles.baseButton,
-        getButtonStyles(),
-        getSizeStyles(),
+        variantStyle.button,
+        sizeStyle.button,
         disabled && styles.disabledButton,
         style,
       ]}
@@ -86,16 +105,36 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' || variant === 'danger' ? COLORS.textInverse : COLORS.primary}
+          color={variant === 'outline' || variant === 'ghost' ? COLORS.primary : COLORS.textInverse}
         />
       ) : (
         <View style={styles.contentRow}>
           {icon && iconPosition === 'left' && (
-            <Ionicons name={icon} size={size === 'sm' ? 16 : 18} color={iconColor} style={styles.leftIcon} />
+            <Ionicons
+              name={icon}
+              size={sizeStyle.iconSize}
+              color={variantStyle.iconColor}
+              style={styles.leftIcon}
+            />
           )}
-          <Text style={[styles.baseText, getTextStyles(), textStyle]}>{title}</Text>
+          <Text
+            style={[
+              styles.baseText,
+              variantStyle.text,
+              sizeStyle.text,
+              disabled && styles.disabledText,
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
           {icon && iconPosition === 'right' && (
-            <Ionicons name={icon} size={size === 'sm' ? 16 : 18} color={iconColor} style={styles.rightIcon} />
+            <Ionicons
+              name={icon}
+              size={sizeStyle.iconSize}
+              color={variantStyle.iconColor}
+              style={styles.rightIcon}
+            />
           )}
         </View>
       )}
@@ -105,7 +144,7 @@ export default function Button({
 
 const styles = StyleSheet.create({
   baseButton: {
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -115,56 +154,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  baseText: {
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.1,
+  },
   leftIcon: {
     marginRight: SPACING.sm,
   },
   rightIcon: {
     marginLeft: SPACING.sm,
   },
-  baseText: {
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-
-  // Sizes
-  smButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  mdButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  lgButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
 
   // Variants
   primaryButton: {
     backgroundColor: COLORS.primary,
+    ...SHADOWS.subtle,
   },
   primaryText: {
-    ...TYPOGRAPHY.bodyMedium,
     color: COLORS.textInverse,
-    fontWeight: '600',
   },
 
   secondaryButton: {
-    backgroundColor: COLORS.surfaceSubtle,
+    backgroundColor: COLORS.secondary,
   },
   secondaryText: {
-    ...TYPOGRAPHY.bodyMedium,
-    color: COLORS.textPrimary,
+    color: COLORS.textInverse,
   },
 
   outlineButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
   },
   outlineText: {
-    ...TYPOGRAPHY.bodyMedium,
+    color: COLORS.primary,
+  },
+
+  ghostButton: {
+    backgroundColor: 'transparent',
+  },
+  ghostText: {
     color: COLORS.textPrimary,
   },
 
@@ -172,20 +202,45 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.danger,
   },
   dangerText: {
-    ...TYPOGRAPHY.bodyMedium,
     color: COLORS.textInverse,
-    fontWeight: '600',
-  },
-
-  ghostButton: {
-    backgroundColor: 'transparent',
-  },
-  ghostText: {
-    ...TYPOGRAPHY.bodyMedium,
-    color: COLORS.primary,
   },
 
   disabledButton: {
-    opacity: 0.5,
+    backgroundColor: COLORS.border,
+    borderColor: COLORS.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  disabledText: {
+    color: COLORS.textTertiary,
+  },
+
+  // Sizes
+  smButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    minHeight: 36,
+  },
+  smText: {
+    fontSize: 13,
+  },
+
+  mdButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    minHeight: 48,
+  },
+  mdText: {
+    fontSize: 15,
+  },
+
+  lgButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    minHeight: 54,
+  },
+  lgText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

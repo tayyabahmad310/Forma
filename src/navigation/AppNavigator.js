@@ -1,15 +1,20 @@
 /**
  * Root Stack Navigator
- * Controls authentication lock gate, screen transitions, and modal routes.
+ * Controls animated splash screen, first-launch onboarding/setup wizard,
+ * PIN security lock gate, screen transitions, and modal routes.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants/theme';
 
+import SplashScreen from '../screens/onboarding/SplashScreen';
+import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
+import SetupWizardScreen from '../screens/onboarding/SetupWizardScreen';
 import PinLockScreen from '../screens/auth/PinLockScreen';
 import TabNavigator from './TabNavigator';
 
@@ -44,8 +49,17 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { isLocked, isCheckingAuth } = useAuth();
+  const { settings, isLoading: isAppLoading } = useApp();
 
-  if (isCheckingAuth) {
+  const [splashFinished, setSplashFinished] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState('carousel'); // 'carousel' | 'wizard' | 'done'
+
+  // Show animated splash screen on app boot
+  if (!splashFinished) {
+    return <SplashScreen onFinish={() => setSplashFinished(true)} />;
+  }
+
+  if (isCheckingAuth || isAppLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -53,6 +67,26 @@ export default function AppNavigator() {
     );
   }
 
+  // First-launch setup flow if store has not completed initial onboarding
+  const isOnboardingDone = settings?.onboarding_completed === 'true' || onboardingStep === 'done';
+
+  if (!isOnboardingDone) {
+    if (onboardingStep === 'wizard') {
+      return (
+        <SetupWizardScreen
+          onBack={() => setOnboardingStep('carousel')}
+          onComplete={() => setOnboardingStep('done')}
+        />
+      );
+    }
+    return (
+      <OnboardingScreen
+        onGetStarted={() => setOnboardingStep('wizard')}
+      />
+    );
+  }
+
+  // Security gate
   if (isLocked) {
     return <PinLockScreen />;
   }
@@ -77,6 +111,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="SalesHistory" component={SalesHistoryScreen} />
         <Stack.Screen name="SaleDetail" component={SaleDetailScreen} />
+        <Stack.Screen name="Return" component={ReturnScreen} />
         <Stack.Screen name="ReturnScreen" component={ReturnScreen} />
 
         {/* Purchases & Suppliers Screens */}

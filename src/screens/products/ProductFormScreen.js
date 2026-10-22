@@ -1,5 +1,6 @@
 /**
  * Product & Variants Creation / Editing Screen
+ * High-end boutique form with safe area insets, pill styling, and luxury palette.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -23,6 +23,7 @@ import { getAllCategories } from '../../repositories/categoryRepository';
 import { CLOTHING_SIZES, CLOTHING_COLORS } from '../../constants/config';
 import { toMinorUnits, toMajorUnits } from '../../utils/currency';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -44,7 +45,7 @@ export default function ProductFormScreen({ route, navigation }) {
 
   // Variations list: array of { size, color, sku, initialStock, purchaseCost, sellingPrice }
   const [variants, setVariants] = useState([
-    { size: 'M', color: 'Black', sku: '', initialStock: '0' },
+    { size: 'M', color: 'Black', sku: '', initialStock: '10' },
   ]);
 
   const [saving, setSaving] = useState(false);
@@ -91,7 +92,7 @@ export default function ProductFormScreen({ route, navigation }) {
   const handleAddVariantRow = () => {
     setVariants((prev) => [
       ...prev,
-      { size: 'L', color: 'White', sku: '', initialStock: '0' },
+      { size: 'L', color: 'White', sku: '', initialStock: '10' },
     ]);
   };
 
@@ -171,30 +172,31 @@ export default function ProductFormScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
         title={isEditing ? 'Edit Product' : 'Add New Product'}
+        subtitle="Catalogue & Inventory Item"
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         {/* Basic Details */}
-        <Card>
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>Basic Information</Text>
 
           <Input
-            label="Product Name *"
+            label="Product Title *"
             value={name}
             onChangeText={setName}
-            placeholder="e.g. Premium Cotton Oxford Shirt"
+            placeholder="e.g. Linen Blend Blazer"
             error={errors.name}
           />
 
           <Input
-            label="Master Product SKU / Code"
+            label="Master Product SKU / Barcode"
             value={sku}
             onChangeText={setSku}
-            placeholder="e.g. SHT-OXF-001"
+            placeholder="e.g. BLZ-LIN-001"
           />
 
           {/* Category Picker */}
@@ -211,6 +213,7 @@ export default function ProductFormScreen({ route, navigation }) {
                   key={c.id}
                   style={[styles.pill, isSelected && styles.pillSelected]}
                   onPress={() => setCategoryId(c.id)}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>
                     {c.name}
@@ -221,17 +224,17 @@ export default function ProductFormScreen({ route, navigation }) {
           </ScrollView>
 
           <Input
-            label="Description / Notes"
+            label="Description / Fabric Notes"
             value={description}
             onChangeText={setDescription}
-            placeholder="Fabric material, wash care, brand, etc."
+            placeholder="Pure linen, tailored lapel, dry clean only."
             multiline
             numberOfLines={2}
           />
         </Card>
 
         {/* Pricing & Stock Rules */}
-        <Card>
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>Default Pricing & Stock Rules</Text>
           <View style={styles.row}>
             <View style={styles.col}>
@@ -267,18 +270,20 @@ export default function ProductFormScreen({ route, navigation }) {
 
         {/* Variations (Sizes & Colors) - Active for creation */}
         {!isEditing && (
-          <Card>
+          <Card style={styles.card}>
             <View style={styles.variantHeader}>
               <View>
                 <Text style={styles.cardTitle}>Sizes & Colors</Text>
                 <Text style={styles.cardSubtitle}>Configure inventory for each variation</Text>
               </View>
-              <Button
-                title="+ Add Variant"
-                variant="outline"
-                size="sm"
+              <TouchableOpacity
+                style={styles.addVariantHeaderBtn}
                 onPress={handleAddVariantRow}
-              />
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={16} color={COLORS.primary} />
+                <Text style={styles.addVariantHeaderText}>Add Variant</Text>
+              </TouchableOpacity>
             </View>
 
             {variants.map((v, idx) => (
@@ -339,7 +344,7 @@ export default function ProductFormScreen({ route, navigation }) {
                       label="Variant SKU"
                       value={v.sku}
                       onChangeText={(val) => updateVariantField(idx, 'sku', val)}
-                      placeholder="e.g. SHT-M-BLK"
+                      placeholder="e.g. BLZ-M-BLK"
                     />
                   </View>
                 </View>
@@ -358,49 +363,52 @@ export default function ProductFormScreen({ route, navigation }) {
           style={styles.submitButton}
         />
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
+  card: {
+    marginBottom: SPACING.lg,
+    padding: SPACING.lg,
+  },
   cardTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
+    marginBottom: 4,
   },
   cardSubtitle: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginBottom: SPACING.md,
   },
   fieldLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textPrimary,
-    fontWeight: '600',
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
     marginBottom: SPACING.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   categoryPills: {
     paddingBottom: SPACING.md,
+    gap: 8,
   },
   pill: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    marginRight: SPACING.sm,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: COLORS.border,
   },
   pillSelected: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   pillText: {
     ...TYPOGRAPHY.caption,
@@ -409,14 +417,14 @@ const styles = StyleSheet.create({
   },
   pillTextSelected: {
     color: COLORS.textInverse,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: SPACING.md,
   },
   col: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
   variantHeader: {
     flexDirection: 'row',
@@ -424,11 +432,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
+  addVariantHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(91,36,19,0.15)',
+  },
+  addVariantHeaderText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.primary,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
   variantRowCard: {
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
   variantTopRow: {
     flexDirection: 'row',
@@ -437,24 +463,26 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   variantIndex: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
+    ...TYPOGRAPHY.caption,
+    fontWeight: '800',
     color: COLORS.textPrimary,
   },
   microLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
     marginTop: SPACING.xs,
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   horizontalChips: {
     marginBottom: SPACING.sm,
   },
   chip: {
     backgroundColor: COLORS.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
     marginRight: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -464,14 +492,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   chipText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textPrimary,
   },
   chipTextSelected: {
     color: COLORS.textInverse,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   submitButton: {
     marginTop: SPACING.md,
+    borderRadius: RADIUS.pill,
   },
 });

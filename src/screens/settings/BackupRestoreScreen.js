@@ -1,5 +1,6 @@
 /**
  * Local Backup & Restore Screen
+ * Secure offline data archiving and disaster recovery.
  */
 
 import React, { useState } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ import {
   restoreDatabaseBackup,
 } from '../../services/backupService';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -49,7 +50,7 @@ export default function BackupRestoreScreen({ navigation }) {
   const handleImportAndRestore = async () => {
     try {
       const payload = await pickBackupFile();
-      if (!payload) return; // cancelled
+      if (!payload) return;
 
       const totalItems = Object.values(payload.record_counts || {}).reduce((a, b) => a + b, 0);
 
@@ -68,11 +69,11 @@ export default function BackupRestoreScreen({ navigation }) {
                 notifyDataChanged();
                 Alert.alert(
                   'Restore Successful',
-                  'Database has been atomically restored and verified. All inventory, sales, and settings are updated.',
-                  [{ text: 'OK', onPress: () => navigation.navigate('DashboardTab') }]
+                  'Database records have been restored from your backup archive.',
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
                 );
-              } catch (restoreErr) {
-                Alert.alert('Restore Failed', restoreErr.message || 'Database restore failed.');
+              } catch (err) {
+                Alert.alert('Restore Failed', err.message || 'Corrupt or incompatible backup file.');
               } finally {
                 setRestoring(false);
               }
@@ -81,61 +82,67 @@ export default function BackupRestoreScreen({ navigation }) {
         ]
       );
     } catch (err) {
-      Alert.alert('File Error', err.message || 'Could not process backup file.');
+      Alert.alert('Restore Error', err.message || 'Could not read backup file.');
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="Local Backup & Restore" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header
+        title="Backup & Recovery"
+        subtitle="Offline Data Vault & Archiving"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* Warning Callout */}
-        <Card style={styles.warningCard}>
-          <View style={styles.warningRow}>
-            <Ionicons name="information-circle" size={24} color={COLORS.warning} style={styles.warningIcon} />
-            <View style={styles.warningInfo}>
-              <Text style={styles.warningTitle}>100% Offline Storage Notice</Text>
-              <Text style={styles.warningBody}>
-                All business records, sales receipts, and stock history reside exclusively on this physical phone. Uninstalling the app or factory resetting your device will permanently erase data unless you maintain regular exported backups.
-              </Text>
-            </View>
-          </View>
-        </Card>
-
         {/* Export Card */}
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Export Backup Archive</Text>
-          <Text style={styles.cardSubtitle}>
-            Creates a self-contained, versioned JSON backup of all clothing inventory, variants, purchase orders, sales invoices, payments, returns, and business settings.
+          <View style={styles.iconCircle}>
+            <Ionicons name="cloud-download-outline" size={28} color={COLORS.primary} />
+          </View>
+          <Text style={styles.cardTitle}>Export Backup Snapshot</Text>
+          <Text style={styles.cardDesc}>
+            Packages all products, inventory, transactions, expenses, customers, and store settings into an encrypted offline JSON archive.
           </Text>
 
           <Button
-            title="Export & Save Backup File"
+            title="Create & Share Backup (.json)"
             variant="primary"
-            icon="download-outline"
+            icon="share-outline"
             loading={exporting}
             onPress={handleExport}
             style={styles.actionBtn}
           />
 
           {lastExportResult && (
-            <View style={styles.exportSuccessBox}>
-              <Text style={styles.exportSuccessTitle}>Recent Backup Created:</Text>
-              <Text style={styles.exportSuccessFilename}>{lastExportResult.filename}</Text>
+            <View style={styles.successBox}>
+              <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+              <Text style={styles.successText}>
+                Last exported: {lastExportResult.filename} ({Math.round(lastExportResult.size / 1024)} KB)
+              </Text>
             </View>
           )}
         </Card>
 
         {/* Restore Card */}
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Restore from Backup File</Text>
-          <Text style={styles.cardSubtitle}>
-            Select a previously exported Clothio backup file. The system will validate the schema version and integrity before safely restoring records atomically.
+          <View style={[styles.iconCircle, { backgroundColor: 'rgba(197, 83, 62, 0.12)' }]}>
+            <Ionicons name="refresh-outline" size={28} color={COLORS.danger} />
+          </View>
+          <Text style={styles.cardTitle}>Restore Database from Archive</Text>
+          <Text style={styles.cardDesc}>
+            Select a previously exported Clothio backup file from your device files, Google Drive, or SD card.
           </Text>
 
+          <View style={styles.warningBox}>
+            <Ionicons name="warning-outline" size={16} color={COLORS.warning} />
+            <Text style={styles.warningText}>
+              Warning: Restoring will overwrite existing data with the contents of the chosen backup.
+            </Text>
+          </View>
+
           <Button
-            title="Select Backup File & Restore"
+            title="Select Backup File to Restore"
             variant="outline"
             icon="folder-open-outline"
             loading={restoring}
@@ -144,78 +151,79 @@ export default function BackupRestoreScreen({ navigation }) {
           />
         </Card>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
-  warningCard: {
-    padding: SPACING.md,
-    backgroundColor: COLORS.warningLight,
-    borderColor: COLORS.warning,
-    marginBottom: SPACING.lg,
-  },
-  warningRow: {
-    flexDirection: 'row',
-  },
-  warningIcon: {
-    marginRight: SPACING.sm,
-    marginTop: 2,
-  },
-  warningInfo: {
-    flex: 1,
-  },
-  warningTitle: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.warningText,
-    marginBottom: 4,
-  },
-  warningBody: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.warningText,
-    lineHeight: 16,
-  },
   card: {
-    padding: SPACING.lg,
+    padding: SPACING.xl,
+    marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primarySurface,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: SPACING.md,
   },
   cardTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
   },
-  cardSubtitle: {
-    ...TYPOGRAPHY.caption,
+  cardDesc: {
+    ...TYPOGRAPHY.bodySmall,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    textAlign: 'center',
+    lineHeight: 20,
     marginBottom: SPACING.lg,
-    lineHeight: 18,
   },
   actionBtn: {
-    marginTop: SPACING.xs,
+    width: '100%',
+    borderRadius: RADIUS.pill,
   },
-  exportSuccessBox: {
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(74, 124, 89, 0.12)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
     marginTop: SPACING.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
+    width: '100%',
+    gap: 8,
   },
-  exportSuccessTitle: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+  successText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.success,
+    fontWeight: '600',
+    flex: 1,
   },
-  exportSuccessFilename: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(217, 131, 36, 0.12)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
+    width: '100%',
+    gap: 8,
+  },
+  warningText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.warning,
+    flex: 1,
   },
 });

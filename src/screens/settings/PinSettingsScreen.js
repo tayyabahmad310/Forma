@@ -1,5 +1,6 @@
 /**
  * PIN Security Settings Screen
+ * Manager access protection and PIN code configuration.
  */
 
 import React, { useState } from 'react';
@@ -8,12 +9,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -69,138 +70,151 @@ export default function PinSettingsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="PIN Lock Security" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header
+        title="Security PIN"
+        subtitle="App Locking & Access Control"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* Warning Callout */}
-        <Card style={styles.warningCard}>
-          <View style={styles.warningRow}>
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.info} style={styles.warningIcon} />
-            <View style={styles.warningInfo}>
-              <Text style={styles.warningTitle}>Local Cryptographic Protection</Text>
-              <Text style={styles.warningBody}>
-                Your PIN is salted and hashed using SHA-256 in Android SecureStore. It protects financial transactions, prices, and customer balances from unauthorized access.
-              </Text>
-            </View>
+        {/* Status Card */}
+        <Card style={styles.statusCard}>
+          <View style={[styles.statusIconCircle, pinEnabled && styles.statusIconCircleActive]}>
+            <Ionicons
+              name={pinEnabled ? 'shield-checkmark' : 'shield-outline'}
+              size={32}
+              color={pinEnabled ? COLORS.success : COLORS.textTertiary}
+            />
           </View>
+          <Text style={styles.statusTitle}>
+            {pinEnabled ? 'PIN Protection Active' : 'No PIN Configured'}
+          </Text>
+          <Text style={styles.statusSubtitle}>
+            {pinEnabled
+              ? 'Clothio requires your security PIN to launch and open the POS register.'
+              : 'Secure your boutique ledger, reports, and POS register with a 4 to 6 digit PIN.'}
+          </Text>
         </Card>
 
-        {pinEnabled ? (
+        {/* Change or Set PIN */}
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {pinEnabled ? 'Change Security PIN' : 'Create New Security PIN'}
+          </Text>
+
+          <Input
+            label="New PIN (4-6 digits)"
+            value={newPin}
+            onChangeText={setNewPin}
+            placeholder="••••"
+            secureTextEntry
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+
+          <Input
+            label="Confirm New PIN"
+            value={confirmPin}
+            onChangeText={setConfirmPin}
+            placeholder="••••"
+            secureTextEntry
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+
+          <Button
+            title={pinEnabled ? 'Update PIN' : 'Enable PIN Protection'}
+            variant="primary"
+            loading={loading}
+            onPress={handleSetPin}
+            style={styles.btn}
+          />
+        </Card>
+
+        {/* Disable PIN */}
+        {pinEnabled && (
           <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Disable PIN Protection</Text>
+            <Text style={styles.cardTitle}>Disable PIN Security</Text>
             <Text style={styles.cardSubtitle}>
-              Enter your active PIN to turn off app lock protection.
+              Enter your current PIN to turn off lock screen protection.
             </Text>
 
             <Input
-              label="Current 4-6 Digit PIN"
+              label="Current PIN"
               value={currentPin}
               onChangeText={setCurrentPin}
               placeholder="••••"
-              keyboardType="number-pad"
               secureTextEntry
+              keyboardType="number-pad"
+              maxLength={6}
             />
 
             <Button
-              title="Disable PIN Security"
-              variant="danger"
+              title="Turn Off PIN Protection"
+              variant="outline"
               loading={loading}
               onPress={handleDisablePin}
-              style={styles.actionBtn}
-            />
-          </Card>
-        ) : (
-          <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Set New Application PIN</Text>
-            <Text style={styles.cardSubtitle}>
-              Create a 4 to 6 digit passcode required whenever Clothio launches.
-            </Text>
-
-            <Input
-              label="New PIN (4-6 digits)"
-              value={newPin}
-              onChangeText={setNewPin}
-              placeholder="••••"
-              keyboardType="number-pad"
-              secureTextEntry
-            />
-
-            <Input
-              label="Confirm New PIN"
-              value={confirmPin}
-              onChangeText={setConfirmPin}
-              placeholder="••••"
-              keyboardType="number-pad"
-              secureTextEntry
-            />
-
-            <Button
-              title="Activate PIN Security"
-              variant="primary"
-              loading={loading}
-              onPress={handleSetPin}
-              style={styles.actionBtn}
+              style={styles.btn}
             />
           </Card>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
-  warningCard: {
-    padding: SPACING.md,
-    backgroundColor: COLORS.infoLight,
-    borderColor: COLORS.info,
+  statusCard: {
+    alignItems: 'center',
+    padding: SPACING.xl,
     marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
   },
-  warningRow: {
-    flexDirection: 'row',
+  statusIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
-  warningIcon: {
-    marginRight: SPACING.sm,
-    marginTop: 2,
+  statusIconCircleActive: {
+    backgroundColor: 'rgba(74, 124, 89, 0.12)',
   },
-  warningInfo: {
-    flex: 1,
-  },
-  warningTitle: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.infoText,
+  statusTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
-  warningBody: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.infoText,
-    lineHeight: 16,
+  statusSubtitle: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   card: {
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
   },
   cardTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
   },
   cardSubtitle: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    marginBottom: SPACING.lg,
-    lineHeight: 18,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginBottom: SPACING.md,
   },
-  actionBtn: {
+  btn: {
     marginTop: SPACING.sm,
+    borderRadius: RADIUS.pill,
   },
 });

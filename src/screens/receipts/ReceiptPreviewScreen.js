@@ -1,5 +1,6 @@
 /**
  * Receipt Preview & Local PDF Sharing Screen
+ * High-end boutique paper receipt view and instant thermal/PDF printer.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,8 @@ import { getPaymentsForSale } from '../../repositories/paymentRepository';
 import { shareReceiptPdf, printReceiptDirect } from '../../services/receiptService';
 import { formatCurrency } from '../../utils/currency';
 import { formatDate, formatTime } from '../../utils/date';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -74,315 +75,280 @@ export default function ReceiptPreviewScreen({ route, navigation }) {
 
   if (!sale) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
         <Header title="Receipt" onBack={() => navigation.goBack()} />
-      </SafeAreaView>
+      </ScreenContainer>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title="Receipt Preview"
-        subtitle={sale.invoice_number}
+        title={`Receipt #${sale.invoice_number}`}
+        subtitle="Customer Paper & PDF Copy"
         onBack={() => navigation.goBack()}
-        rightIcon="home-outline"
-        onRightPress={() => navigation.navigate('DashboardTab')}
       />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* Paper Receipt Simulation Card */}
-        <Card style={styles.paperReceipt}>
+        {/* Paper Receipt Simulation */}
+        <View style={styles.paperReceipt}>
           {/* Header */}
           <View style={styles.receiptHeader}>
+            <View style={styles.monogram}>
+              <Text style={styles.monogramText}>
+                {(settings.business_name || 'CLOTHIO').charAt(0).toUpperCase()}
+              </Text>
+            </View>
             <Text style={styles.storeName}>{settings.business_name || 'Clothio Apparel'}</Text>
             {settings.business_address ? (
               <Text style={styles.storeAddress}>{settings.business_address}</Text>
             ) : null}
             {settings.business_phone ? (
-              <Text style={styles.storePhone}>Tel: {settings.business_phone}</Text>
+              <Text style={styles.storePhone}>{settings.business_phone}</Text>
             ) : null}
           </View>
 
-          <View style={styles.invoiceMetaTable}>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Invoice No:</Text>
-              <Text style={styles.metaVal}>{sale.invoice_number}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Date & Time:</Text>
-              <Text style={styles.metaVal}>
-                {formatDate(sale.sale_date)} ({formatTime(sale.created_at)})
-              </Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Customer:</Text>
-              <Text style={styles.metaVal}>{sale.customer_name_snapshot || 'Walk-in Customer'}</Text>
-            </View>
+          <View style={styles.dashedLine} />
+
+          {/* Meta Info */}
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>Invoice: #{sale.invoice_number}</Text>
+            <Text style={styles.metaLabel}>{formatDate(sale.sale_date)}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>
+              Client: {sale.customer_name_snapshot || 'Walk-in Guest'}
+            </Text>
+            <Text style={styles.metaLabel}>{formatTime(sale.created_at)}</Text>
           </View>
 
-          <View style={styles.dashedDivider} />
+          <View style={styles.dashedLine} />
 
-          {/* Line Items */}
-          <View style={styles.itemsTableHeader}>
-            <Text style={[styles.thText, { flex: 2 }]}>ITEM & SIZE</Text>
-            <Text style={[styles.thText, { flex: 1, textAlign: 'center' }]}>QTY</Text>
-            <Text style={[styles.thText, { flex: 1, textAlign: 'right' }]}>PRICE</Text>
-            <Text style={[styles.thText, { flex: 1, textAlign: 'right' }]}>TOTAL</Text>
-          </View>
-
-          {items.map((it) => (
-            <View key={it.id} style={styles.itemRow}>
-              <View style={{ flex: 2 }}>
-                <Text style={styles.itName}>{it.product_name_snapshot}</Text>
-                <Text style={styles.itVariant}>{it.variant_name_snapshot}</Text>
+          {/* Items Table */}
+          <View style={styles.itemsTable}>
+            {items.map((it, idx) => (
+              <View key={it.id || idx} style={styles.receiptItemRow}>
+                <View style={styles.itemTitleCol}>
+                  <Text style={styles.receiptItemTitle}>{it.product_name_snapshot}</Text>
+                  <Text style={styles.receiptItemMeta}>
+                    {it.size_snapshot} / {it.color_snapshot} • {it.quantity} x {formatCurrency(it.unit_price, currencySymbol)}
+                  </Text>
+                </View>
+                <Text style={styles.receiptItemSubtotal}>
+                  {formatCurrency(it.subtotal, currencySymbol)}
+                </Text>
               </View>
-              <Text style={[styles.itVal, { flex: 1, textAlign: 'center' }]}>{it.quantity}</Text>
-              <Text style={[styles.itVal, { flex: 1, textAlign: 'right' }]}>
-                {formatCurrency(it.custom_unit_price || it.unit_price_snapshot, currencySymbol)}
-              </Text>
-              <Text style={[styles.itValBold, { flex: 1, textAlign: 'right' }]}>
-                {formatCurrency(it.subtotal, currencySymbol)}
-              </Text>
-            </View>
-          ))}
+            ))}
+          </View>
 
-          <View style={styles.dashedDivider} />
+          <View style={styles.dashedLine} />
 
           {/* Totals */}
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Subtotal</Text>
-            <Text style={styles.calcVal}>{formatCurrency(sale.subtotal, currencySymbol)}</Text>
-          </View>
-
-          {sale.discount_amount > 0 && (
-            <View style={styles.calcRow}>
-              <Text style={styles.discountLabel}>Order Discount</Text>
-              <Text style={styles.discountVal}>
-                -{formatCurrency(sale.discount_amount, currencySymbol)}
-              </Text>
+          <View style={styles.totalsTable}>
+            <View style={styles.tRow}>
+              <Text style={styles.tLabel}>Subtotal</Text>
+              <Text style={styles.tVal}>{formatCurrency(sale.subtotal, currencySymbol)}</Text>
             </View>
-          )}
 
-          <View style={styles.solidDivider} />
+            {sale.discount_amount > 0 && (
+              <View style={styles.tRow}>
+                <Text style={styles.tLabel}>Discount</Text>
+                <Text style={styles.tVal}>-{formatCurrency(sale.discount_amount, currencySymbol)}</Text>
+              </View>
+            )}
 
-          <View style={styles.calcRow}>
-            <Text style={styles.netTotalLabel}>NET TOTAL</Text>
-            <Text style={styles.netTotalVal}>{formatCurrency(sale.total_amount, currencySymbol)}</Text>
-          </View>
-
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Paid ({sale.payment_method})</Text>
-            <Text style={styles.paidVal}>{formatCurrency(sale.paid_amount, currencySymbol)}</Text>
-          </View>
-
-          {sale.balance_amount > 0 ? (
-            <View style={styles.calcRow}>
-              <Text style={styles.balanceDueLabel}>Remaining Due</Text>
-              <Text style={styles.balanceDueVal}>
-                {formatCurrency(sale.balance_amount, currencySymbol)}
-              </Text>
+            <View style={styles.tGrandRow}>
+              <Text style={styles.tGrandLabel}>Total Amount</Text>
+              <Text style={styles.tGrandVal}>{formatCurrency(sale.total_amount, currencySymbol)}</Text>
             </View>
-          ) : (
-            <View style={styles.calcRow}>
-              <Text style={styles.calcLabel}>Status</Text>
-              <Text style={styles.settledText}>FULLY SETTLED</Text>
+
+            <View style={styles.tRow}>
+              <Text style={styles.tLabel}>Paid Amount ({sale.payment_method})</Text>
+              <Text style={styles.tVal}>{formatCurrency(sale.paid_amount, currencySymbol)}</Text>
             </View>
-          )}
 
-          <View style={styles.dashedDivider} />
-
-          <View style={styles.receiptFooter}>
-            <Text style={styles.footerText}>
-              {settings.receipt_footer || 'Thank you for shopping with us!'}
-            </Text>
+            {sale.total_amount > sale.paid_amount && (
+              <View style={styles.tRow}>
+                <Text style={[styles.tLabel, { color: COLORS.danger, fontWeight: '700' }]}>
+                  Balance Due
+                </Text>
+                <Text style={[styles.tVal, { color: COLORS.danger, fontWeight: '800' }]}>
+                  {formatCurrency(sale.total_amount - sale.paid_amount, currencySymbol)}
+                </Text>
+              </View>
+            )}
           </View>
-        </Card>
+
+          {/* Footer Tagline */}
+          <View style={styles.dashedLine} />
+          <Text style={styles.footerNote}>
+            {settings.receipt_footer || 'Thank you for shopping with us!'}
+          </Text>
+        </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionRow}>
+        <View style={styles.buttonRow}>
           <Button
             title="Share PDF Receipt"
-            variant="primary"
             icon="share-outline"
+            variant="outline"
             loading={isSharing}
             onPress={handleSharePdf}
             style={styles.actionBtn}
           />
-
           <Button
             title="Print Receipt"
-            variant="outline"
             icon="print-outline"
+            variant="primary"
             loading={isPrinting}
             onPress={handlePrint}
             style={styles.actionBtn}
           />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
   paperReceipt: {
-    padding: SPACING.lg,
     backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
+    borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
+    ...SHADOWS.md,
   },
   receiptHeader: {
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  storeName: {
-    ...TYPOGRAPHY.h2,
+  monogram: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primarySurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.xs,
+  },
+  monogramText: {
+    ...TYPOGRAPHY.h3,
     fontWeight: '800',
-    textTransform: 'uppercase',
+    color: COLORS.primary,
+  },
+  storeName: {
+    ...TYPOGRAPHY.h3,
+    fontWeight: '800',
     color: COLORS.textPrimary,
   },
   storeAddress: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
     textAlign: 'center',
     marginTop: 2,
   },
   storePhone: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 1,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginTop: 2,
   },
-  invoiceMetaTable: {
-    marginBottom: SPACING.sm,
+  dashedLine: {
+    height: 1,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderStyle: 'dashed',
+    marginVertical: SPACING.md,
   },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    paddingVertical: 2,
   },
   metaLabel: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
   },
-  metaVal: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+  itemsTable: {
+    paddingVertical: SPACING.xs,
   },
-  dashedDivider: {
-    borderStyle: 'dashed',
-    borderWidth: 0.5,
-    borderColor: COLORS.borderDark,
-    marginVertical: SPACING.sm,
-  },
-  solidDivider: {
-    height: 1,
-    backgroundColor: COLORS.textPrimary,
-    marginVertical: SPACING.xs + 2,
-  },
-  itemsTableHeader: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  thText: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    fontSize: 10,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    paddingVertical: 4,
-  },
-  itName: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
-  itVariant: {
-    fontSize: 10,
-    color: COLORS.textTertiary,
-  },
-  itVal: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
-  },
-  itValBold: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  calcRow: {
+  receiptItemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    paddingVertical: 6,
   },
-  calcLabel: {
+  itemTitleCol: {
+    flex: 1,
+    marginRight: SPACING.md,
+  },
+  receiptItemTitle: {
     ...TYPOGRAPHY.caption,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  receiptItemMeta: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginTop: 1,
+  },
+  receiptItemSubtotal: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  totalsTable: {
+    gap: 4,
+  },
+  tRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  tLabel: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
   },
-  calcVal: {
-    ...TYPOGRAPHY.caption,
+  tVal: {
+    ...TYPOGRAPHY.captionSmall,
     fontWeight: '600',
+    color: COLORS.textPrimary,
   },
-  discountLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.danger,
+  tGrandRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginVertical: 4,
   },
-  discountVal: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.danger,
-  },
-  netTotalLabel: {
+  tGrandLabel: {
     ...TYPOGRAPHY.bodySmall,
     fontWeight: '800',
+    color: COLORS.textPrimary,
   },
-  netTotalVal: {
-    ...TYPOGRAPHY.bodyMedium,
+  tGrandVal: {
+    ...TYPOGRAPHY.bodyLarge,
     fontWeight: '800',
+    color: COLORS.primary,
   },
-  paidVal: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.success,
-  },
-  balanceDueLabel: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.warning,
-  },
-  balanceDueVal: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '800',
-    color: COLORS.warning,
-  },
-  settledText: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.success,
-  },
-  receiptFooter: {
-    alignItems: 'center',
-    paddingTop: SPACING.xs,
-  },
-  footerText: {
-    ...TYPOGRAPHY.caption,
+  footerNote: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
     textAlign: 'center',
+    fontStyle: 'italic',
   },
-  actionRow: {
-    flexDirection: 'column',
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
   },
   actionBtn: {
-    marginBottom: SPACING.sm,
+    flex: 1,
+    borderRadius: RADIUS.pill,
   },
 });

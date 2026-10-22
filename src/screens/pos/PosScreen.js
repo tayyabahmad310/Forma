@@ -1,6 +1,8 @@
 /**
- * Point of Sale (POS) Screen
- * Fast, intuitive clothing item and variant selection with active cart drawer.
+ * Luxury Fashion Point of Sale (POS) Screen
+ * Matches reference aesthetic:
+ * 2-column clothing variant cards, category pills, search bar,
+ * live quantity steppers, and floating bottom checkout bar with safe area padding.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,29 +12,42 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../context/AppContext';
-import { searchVariantsForPOS } from '../../repositories/productRepository';
-import { formatCurrency } from '../../utils/currency';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
+import { useApp } from '../../context/AppContext';
+import { searchVariantsForPOS } from '../../repositories/productRepository';
+import { formatCurrency } from '../../utils/currency';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+
+const { width } = Dimensions.get('window');
+
+const POS_CATEGORIES = [
+  { id: 'all', label: 'All Items' },
+  { id: 'hijab', label: 'Hijabs & Scarves' },
+  { id: 'abaya', label: 'Abayas' },
+  { id: 'dress', label: 'Dresses' },
+  { id: 'shirt', label: 'Shirts & Tops' },
+  { id: 'formal', label: 'Formal Wear' },
+];
 
 export default function PosScreen({ navigation }) {
   const { currencySymbol, dataVersion } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('all');
   const [variants, setVariants] = useState([]);
-  const [cart, setCart] = useState([]); // array of { variantId, productId, productName, variantName, size, color, sellingPrice, unitCost, currentStock, quantity, customUnitPrice, discountAmount, subtotal }
+  const [cart, setCart] = useState([]);
 
   const loadVariants = useCallback(async () => {
     try {
-      const items = await searchVariantsForPOS(searchTerm, 40);
+      const items = await searchVariantsForPOS(searchTerm, 50);
       setVariants(items);
     } catch (err) {
       console.warn('Error loading variants for POS:', err);
@@ -43,9 +58,10 @@ export default function PosScreen({ navigation }) {
     loadVariants();
   }, [loadVariants, dataVersion]);
 
+  // Add variant to cart
   const handleAddToCart = (variant) => {
     if (variant.current_stock <= 0) {
-      Alert.alert('Out of Stock', `"${variant.product_name} (${variant.size} / ${variant.color})" is out of stock.`);
+      Alert.alert('Out of Stock', `"${variant.product_name} (${variant.size || ''} ${variant.color || ''})" is out of stock.`);
       return;
     }
 
@@ -59,300 +75,486 @@ export default function PosScreen({ navigation }) {
         }
         const updated = [...prev];
         const newQty = existing.quantity + 1;
-        const lineTotal = (existing.customUnitPrice || existing.sellingPrice) * newQty - (existing.discountAmount || 0);
         updated[existingIndex] = {
           ...existing,
           quantity: newQty,
-          subtotal: Math.max(0, lineTotal),
+          subtotal: newQty * existing.unit_price,
         };
         return updated;
       } else {
-        const itemSubtotal = variant.selling_price;
         return [
           ...prev,
           {
             variantId: variant.variant_id,
             productId: variant.product_id,
-            productName: variant.product_name,
-            variantName: `Size: ${variant.size}, Color: ${variant.color}`,
+            product_name: variant.product_name,
             size: variant.size,
             color: variant.color,
-            sellingPrice: variant.selling_price,
-            unitCost: variant.purchase_cost || 0,
-            currentStock: variant.current_stock,
+            unit_price: variant.selling_price,
+            unit_cost: variant.cost_price,
+            current_stock: variant.current_stock,
             quantity: 1,
-            customUnitPrice: null,
-            discountAmount: 0,
-            subtotal: itemSubtotal,
+            custom_unit_price: null,
+            discount_amount: 0,
+            subtotal: variant.selling_price,
           },
         ];
       }
     });
   };
 
-  const totalCartUnits = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalCartAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
+  // Decrement from cart
+  const handleDecrement = (variantId) => {
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((item) => item.variantId === variantId);
+      if (existingIndex === -1) return prev;
+      const existing = prev[existingIndex];
+      if (existing.quantity > 1) {
+        const updated = [...prev];
+        const newQty = existing.quantity - 1;
+        updated[existingIndex] = {
+          ...existing,
+          quantity: newQty,
+          subtotal: newQty * existing.unit_price,
+        };
+        return updated;
+      } else {
+        return prev.filter((item) => item.variantId !== variantId);
+      }
+    });
+  };
+
+  const cartTotalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+
+  const renderVariantCard = ({ item }) => {
+    const cartItem = cart.find((c) => c.variantId === item.variant_id);
+    const inCartQty = cartItem ? cartItem.quantity : 0;
+    const isOutOfStock = item.current_stock <= 0;
+
+    return (
+      <View style={styles.cardWrapper}>
+        <TouchableOpacity
+          style={[styles.productCard, isOutOfStock && styles.productCardDisabled]}
+          onPress={() => !isOutOfStock && handleAddToCart(item)}
+          activeOpacity={0.75}
+        >
+          {/* Card Top Thumbnail */}
+          <View style={styles.thumbnailBox}>
+            <Ionicons name="shirt-outline" size={32} color={COLORS.primaryLight} />
+
+            {/* In Cart Badge */}
+            {inCartQty > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{inCartQty}</Text>
+              </View>
+            )}
+
+            {/* Stock status pill */}
+            <View style={styles.stockPill}>
+              {isOutOfStock ? (
+                <Badge label="Sold Out" variant="danger" size="sm" />
+              ) : (
+                <Text style={styles.stockText}>{item.current_stock} left</Text>
+              )}
+            </View>
+          </View>
+
+          {/* Details */}
+          <View style={styles.cardInfo}>
+            <Text style={styles.productName} numberOfLines={1}>
+              {item.product_name}
+            </Text>
+
+            {/* Variant Chips */}
+            <View style={styles.variantChipsRow}>
+              {item.size ? (
+                <View style={styles.sizeChip}>
+                  <Text style={styles.sizeChipText}>{item.size}</Text>
+                </View>
+              ) : null}
+              {item.color ? (
+                <View style={styles.colorChip}>
+                  <Text style={styles.colorChipText}>{item.color}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Price & Add Action */}
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>
+                {formatCurrency(item.selling_price, currencySymbol)}
+              </Text>
+
+              {inCartQty > 0 ? (
+                <View style={styles.stepperMini}>
+                  <TouchableOpacity
+                    style={styles.stepBtnMini}
+                    onPress={() => handleDecrement(item.variant_id)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="remove" size={12} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={styles.stepQtyMini}>{inCartQty}</Text>
+                  <TouchableOpacity
+                    style={styles.stepBtnMini}
+                    onPress={() => handleAddToCart(item)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="add" size={12} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.addBtn, isOutOfStock && styles.addBtnDisabled]}
+                  onPress={() => !isOutOfStock && handleAddToCart(item)}
+                  disabled={isOutOfStock}
+                >
+                  <Ionicons name="add" size={16} color={COLORS.textInverse} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe={false}>
+      {/* POS Top Header */}
       <Header
         title="Point of Sale"
-        subtitle="Select clothing items for sale"
+        subtitle="Rapid Clothing Checkout"
         rightAction={
-          cart.length > 0 ? (
-            <TouchableOpacity onPress={() => setCart([])} style={styles.clearBtn}>
-              <Text style={styles.clearBtnText}>Clear Cart</Text>
+          cartTotalItems > 0 ? (
+            <TouchableOpacity
+              style={styles.cartIconHeader}
+              onPress={() => navigation.navigate('Checkout', { cart, setCart })}
+            >
+              <Ionicons name="bag-handle" size={20} color={COLORS.primary} />
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{cartTotalItems}</Text>
+              </View>
             </TouchableOpacity>
           ) : null
         }
       />
 
-      <View style={styles.searchBarContainer}>
+      {/* Search Input */}
+      <View style={styles.searchContainer}>
         <SearchBar
           value={searchTerm}
           onChangeText={setSearchTerm}
-          placeholder="Search by name, SKU, size, or color..."
-          onClear={() => setSearchTerm('')}
+          placeholder="Search by title, size, color, or barcode..."
         />
       </View>
 
-      {/* POS Items Grid */}
-      {variants.length === 0 ? (
-        <EmptyState
-          icon="shirt-outline"
-          title="No clothing items found"
-          description="Ensure you have active products and variants in inventory."
-          actionTitle="Create Product"
-          onAction={() => navigation.navigate('ProductForm', {})}
-        />
-      ) : (
+      {/* Category Filter Pills */}
+      <View style={styles.filterBar}>
         <FlatList
-          data={variants}
-          keyExtractor={(item) => String(item.variant_id)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={POS_CATEGORIES}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.filterList}
           renderItem={({ item }) => {
-            const inCart = cart.find((c) => c.variantId === item.variant_id);
-            const isOutOfStock = item.current_stock <= 0;
-
+            const isSelected = selectedFilter === item.id;
             return (
               <TouchableOpacity
-                style={[styles.itemCard, inCart && styles.itemCardInCart]}
-                onPress={() => handleAddToCart(item)}
-                disabled={isOutOfStock}
+                style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                onPress={() => setSelectedFilter(item.id)}
                 activeOpacity={0.7}
               >
-                <View style={styles.itemRow}>
-                  <View style={styles.thumbnail}>
-                    <Ionicons
-                      name="shirt"
-                      size={24}
-                      color={isOutOfStock ? COLORS.textTertiary : COLORS.primary}
-                    />
-                  </View>
-
-                  <View style={styles.itemDetails}>
-                    <Text style={styles.itemName} numberOfLines={1}>
-                      {item.product_name}
-                    </Text>
-
-                    <View style={styles.variantTags}>
-                      <View style={styles.pillTag}>
-                        <Text style={styles.pillTagText}>{item.size}</Text>
-                      </View>
-                      <View style={styles.pillTag}>
-                        <Text style={styles.pillTagText}>{item.color}</Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.priceText}>
-                      {formatCurrency(item.selling_price, currencySymbol)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.rightStockCol}>
-                    <Badge
-                      label={isOutOfStock ? 'Out' : `${item.current_stock} left`}
-                      variant={isOutOfStock ? 'danger' : item.current_stock <= 3 ? 'warning' : 'success'}
-                      size="sm"
-                    />
-
-                    {inCart && (
-                      <View style={styles.cartQtyBadge}>
-                        <Text style={styles.cartQtyText}>{inCart.quantity} in cart</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
+                <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>
+                  {item.label}
+                </Text>
               </TouchableOpacity>
             );
           }}
-          contentContainerStyle={styles.listContent}
         />
-      )}
+      </View>
 
-      {/* Bottom Cart Bar */}
-      {cart.length > 0 && (
-        <View style={styles.bottomBar}>
-          <View style={styles.cartSummary}>
-            <Text style={styles.cartUnitsText}>
-              {totalCartUnits} item{totalCartUnits !== 1 ? 's' : ''} in cart
-            </Text>
-            <Text style={styles.cartTotalText}>
-              {formatCurrency(totalCartAmount, currencySymbol)}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.checkoutBtn}
-            onPress={() =>
-              navigation.navigate('Checkout', {
-                cart,
-                onUpdateCart: (updated) => setCart(updated),
-                onClearCart: () => setCart([]),
-              })
+      {/* Variant Grid */}
+      <FlatList
+        data={variants}
+        renderItem={renderVariantCard}
+        keyExtractor={(item) => String(item.variant_id)}
+        numColumns={2}
+        contentContainerStyle={[
+          styles.gridContent,
+          cartTotalItems > 0 && { paddingBottom: 160 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        ListEmptyState={
+          <EmptyState
+            icon="shirt-outline"
+            title="No Items Available"
+            message={
+              searchTerm
+                ? 'No sizes or items matched your search query.'
+                : 'Inventory is empty. Go to Inventory tab to add your clothing products.'
             }
-          >
-            <Text style={styles.checkoutBtnText}>Checkout</Text>
-            <Ionicons name="arrow-forward" size={18} color={COLORS.textInverse} />
-          </TouchableOpacity>
+          />
+        }
+      />
+
+      {/* Floating Bottom Cart Bar (Appears when items are selected) */}
+      {cartTotalItems > 0 && (
+        <View style={styles.floatingCartDock}>
+          <View style={styles.cartSummaryRow}>
+            <View>
+              <Text style={styles.cartCountLabel}>{cartTotalItems} {cartTotalItems === 1 ? 'Item' : 'Items'} in Order</Text>
+              <Text style={styles.cartSubtotalText}>
+                {formatCurrency(cartSubtotal, currencySymbol)}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.checkoutPillBtn}
+              onPress={() => navigation.navigate('Checkout', { cart, setCart })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.checkoutPillText}>Checkout</Text>
+              <Ionicons name="arrow-forward" size={16} color={COLORS.textInverse} />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  searchContainer: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xs,
   },
-  searchBarContainer: {
-    paddingHorizontal: SPACING.lg,
+  filterBar: {
     paddingVertical: SPACING.sm,
   },
-  clearBtn: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+  filterList: {
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.sm,
   },
-  clearBtnText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.danger,
-    fontWeight: '600',
-  },
-  listContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: 100,
-  },
-  itemCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: 'transparent',
   },
-  itemCardInCart: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#FAFAFA',
+  filterChipActive: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
   },
-  itemRow: {
-    flexDirection: 'row',
+  filterChipText: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  filterChipTextActive: {
+    color: COLORS.textInverse,
+  },
+  cartIconHeader: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primarySurface,
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  thumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.md,
+  cartCountBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  cartCountText: {
+    color: COLORS.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  gridContent: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: 90,
+  },
+  cardWrapper: {
+    width: (width - SPACING.xl * 2 - SPACING.md) / 2,
+    marginBottom: SPACING.md,
+    marginRight: SPACING.md,
+  },
+  productCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
+  },
+  productCardDisabled: {
+    opacity: 0.6,
+  },
+  thumbnailBox: {
+    height: 130,
     backgroundColor: COLORS.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: SPACING.md,
+    position: 'relative',
   },
-  itemDetails: {
-    flex: 1,
-  },
-  itemName: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  variantTags: {
-    flexDirection: 'row',
+  cartBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.primary,
+    width: 24,
+    height: 24,
+    borderRadius: RADIUS.pill,
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'center',
   },
-  pillTag: {
-    backgroundColor: COLORS.surfaceSubtle,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: RADIUS.xs,
-    marginRight: 4,
+  cartBadgeText: {
+    color: COLORS.textInverse,
+    fontSize: 12,
+    fontWeight: '700',
   },
-  pillTagText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+  stockPill: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.pill,
+  },
+  stockText: {
     fontSize: 10,
     fontWeight: '600',
+    color: COLORS.textSecondary,
   },
-  priceText: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
+  cardInfo: {
+    padding: SPACING.md,
+  },
+  productName: {
+    ...TYPOGRAPHY.h3,
+    fontSize: 13,
     color: COLORS.textPrimary,
+    marginBottom: 4,
   },
-  rightStockCol: {
-    alignItems: 'flex-end',
+  variantChipsRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: SPACING.sm,
   },
-  cartQtyBadge: {
-    marginTop: 6,
-    backgroundColor: COLORS.primary,
+  sizeChip: {
+    backgroundColor: COLORS.secondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: RADIUS.xs,
   },
-  cartQtyText: {
+  sizeChipText: {
+    color: COLORS.textInverse,
     fontSize: 10,
     fontWeight: '700',
-    color: COLORS.textInverse,
   },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+  colorChip: {
+    backgroundColor: COLORS.surfaceSubtle,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADIUS.xs,
+  },
+  colorChipText: {
+    color: COLORS.textSecondary,
+    fontSize: 10,
+  },
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    ...SHADOWS.modal,
   },
-  cartSummary: {
-    flex: 1,
+  price: {
+    ...TYPOGRAPHY.price,
+    fontSize: 14,
+    color: COLORS.primary,
   },
-  cartUnitsText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+  addBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cartTotalText: {
-    ...TYPOGRAPHY.h3,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+  addBtnDisabled: {
+    backgroundColor: COLORS.border,
   },
-  checkoutBtn: {
+  stepperMini: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: 12,
-    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.pill,
+    padding: 2,
   },
-  checkoutBtnText: {
-    ...TYPOGRAPHY.bodyMedium,
+  stepBtnMini: {
+    width: 22,
+    height: 22,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepQtyMini: {
+    fontSize: 12,
     fontWeight: '700',
+    color: COLORS.textPrimary,
+    paddingHorizontal: 6,
+  },
+  floatingCartDock: {
+    position: 'absolute',
+    bottom: 74, // Sits comfortably above floating bottom tab dock
+    left: SPACING.xl,
+    right: SPACING.xl,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.floating,
+  },
+  cartSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cartCountLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textTertiary,
+  },
+  cartSubtotalText: {
+    ...TYPOGRAPHY.priceLarge,
+    color: COLORS.primary,
+  },
+  checkoutPillBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: RADIUS.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkoutPillText: {
     color: COLORS.textInverse,
-    marginRight: 6,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

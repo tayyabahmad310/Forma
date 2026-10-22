@@ -1,109 +1,162 @@
 /**
- * KPI Stat Card for Dashboard & Financial Reports
+ * Luxury Fashion StatCard Component
+ * High-level business metric card with warm tinted backgrounds and crisp typography.
  */
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
-import Card from './Card';
 
 export default function StatCard({
   title,
   value,
   subtitle = null,
-  icon = 'wallet-outline',
-  iconColor = COLORS.primary,
-  iconBg = COLORS.surfaceSubtle,
-  trend = null, // e.g. "+12% vs last week"
-  trendType = 'positive', // 'positive' | 'negative' | 'neutral'
-  onPress = null,
-  style = null,
+  icon = null,
+  trend = null, // e.g. "+12%"
+  trendPositive = true,
+  variant = 'default', // 'default' | 'primary' | 'success' | 'warning' | 'danger'
+  style,
 }) {
+  const getVariantDetails = () => {
+    switch (variant) {
+      case 'primary':
+        return {
+          bg: COLORS.primarySurface,
+          iconBg: COLORS.primary,
+          iconColor: COLORS.textInverse,
+          valueColor: COLORS.primary,
+        };
+      case 'success':
+        return {
+          bg: COLORS.successLight,
+          iconBg: COLORS.success,
+          iconColor: COLORS.textInverse,
+          valueColor: COLORS.successText,
+        };
+      case 'warning':
+        return {
+          bg: COLORS.warningLight,
+          iconBg: COLORS.warning,
+          iconColor: COLORS.textInverse,
+          valueColor: COLORS.warningText,
+        };
+      case 'danger':
+        return {
+          bg: COLORS.dangerLight,
+          iconBg: COLORS.danger,
+          iconColor: COLORS.textInverse,
+          valueColor: COLORS.dangerText,
+        };
+      case 'default':
+      default:
+        return {
+          bg: COLORS.surface,
+          iconBg: COLORS.surfaceSubtle,
+          iconColor: COLORS.primary,
+          valueColor: COLORS.textPrimary,
+        };
+    }
+  };
+
+  const config = getVariantDetails();
+
   return (
-    <Card style={[styles.card, style]} onPress={onPress}>
+    <View style={[styles.card, { backgroundColor: config.bg }, style]}>
       <View style={styles.topRow}>
-        <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
-          <Ionicons name={icon} size={20} color={iconColor} />
-        </View>
-        {trend && (
-          <View style={styles.trendContainer}>
-            <Text
-              style={[
-                styles.trendText,
-                trendType === 'positive' && styles.trendPositive,
-                trendType === 'negative' && styles.trendNegative,
-              ]}
-            >
-              {trend}
-            </Text>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {icon && (
+          <View style={[styles.iconCircle, { backgroundColor: config.iconBg }]}>
+            <Ionicons name={icon} size={16} color={config.iconColor} />
           </View>
         )}
       </View>
 
-      <Text style={styles.value} numberOfLines={1}>
+      <Text style={[styles.value, { color: config.valueColor }]} numberOfLines={1}>
         {value}
       </Text>
-      <Text style={styles.title} numberOfLines={1}>
-        {title}
-      </Text>
-      {subtitle && (
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {subtitle}
-        </Text>
+
+      {(subtitle || trend) && (
+        <View style={styles.bottomRow}>
+          {trend && (
+            <View style={styles.trendRow}>
+              <Ionicons
+                name={trendPositive ? 'trending-up' : 'trending-down'}
+                size={14}
+                color={trendPositive ? COLORS.success : COLORS.danger}
+              />
+              <Text
+                style={[
+                  styles.trendText,
+                  { color: trendPositive ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {trend}
+              </Text>
+            </View>
+          )}
+          {subtitle && (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+        </View>
       )}
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    borderRadius: RADIUS.lg,
     padding: SPACING.lg,
-    flex: 1,
-    minWidth: 150,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
   },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
   },
-  iconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.md,
+  title: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  iconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  trendContainer: {
-    paddingHorizontal: SPACING.xs + 2,
-    paddingVertical: 2,
-    borderRadius: RADIUS.xs,
-    backgroundColor: COLORS.surfaceSubtle,
+  value: {
+    ...TYPOGRAPHY.priceLarge,
+    marginBottom: SPACING.xs,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   trendText: {
     ...TYPOGRAPHY.caption,
-    fontWeight: '600',
-  },
-  trendPositive: {
-    color: COLORS.success,
-  },
-  trendNegative: {
-    color: COLORS.danger,
-  },
-  value: {
-    ...TYPOGRAPHY.h2,
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  title: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   subtitle: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textTertiary,
-    marginTop: 2,
+    flex: 1,
   },
 });

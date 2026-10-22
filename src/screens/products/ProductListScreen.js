@@ -11,7 +11,6 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +18,7 @@ import { useApp } from '../../context/AppContext';
 import { getProductsPaginated } from '../../repositories/productRepository';
 import { getAllCategories } from '../../repositories/categoryRepository';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import ProductCard from '../../components/product/ProductCard';
@@ -115,16 +115,17 @@ export default function ProductListScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe={false}>
       <Header
-        title="Products & Inventory"
-        subtitle={`${products.length} items loaded`}
+        title="Inventory"
+        subtitle={`${products.length} clothing items`}
         rightAction={
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => navigation.navigate('ProductForm', {})}
+            activeOpacity={0.8}
           >
-            <Ionicons name="add" size={20} color={COLORS.textInverse} />
+            <Ionicons name="add" size={18} color={COLORS.textInverse} />
             <Text style={styles.addButtonText}>Add</Text>
           </TouchableOpacity>
         }
@@ -134,7 +135,7 @@ export default function ProductListScreen({ route, navigation }) {
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search product name or SKU..."
+          placeholder="Search products or SKU..."
           onClear={() => setSearch('')}
         />
       </View>
@@ -149,6 +150,7 @@ export default function ProductListScreen({ route, navigation }) {
                 key={f.id}
                 style={[styles.pill, isSelected && styles.pillSelected]}
                 onPress={() => setStockStatus(f.id)}
+                activeOpacity={0.7}
               >
                 <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>
                   {f.label}
@@ -166,6 +168,7 @@ export default function ProductListScreen({ route, navigation }) {
             <TouchableOpacity
               style={[styles.catPill, selectedCategory === null && styles.catPillSelected]}
               onPress={() => setSelectedCategory(null)}
+              activeOpacity={0.7}
             >
               <Text style={[styles.catPillText, selectedCategory === null && styles.catPillTextSelected]}>
                 All Categories
@@ -178,6 +181,7 @@ export default function ProductListScreen({ route, navigation }) {
                   key={c.id}
                   style={[styles.catPill, isSelected && styles.catPillSelected]}
                   onPress={() => setSelectedCategory(c.id)}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.catPillText, isSelected && styles.catPillTextSelected]}>
                     {c.name}
@@ -189,7 +193,7 @@ export default function ProductListScreen({ route, navigation }) {
         </View>
       )}
 
-      {/* Product List */}
+      {/* Product Grid */}
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -198,26 +202,31 @@ export default function ProductListScreen({ route, navigation }) {
         <EmptyState
           icon="shirt-outline"
           title="No products found"
-          description="Try adjusting your search or stock status filter, or add a new clothing product."
-          actionTitle="Create Product"
+          message="Try adjusting your search or stock status filter, or add a new clothing product."
+          actionLabel="+ Add Product"
           onAction={() => navigation.navigate('ProductForm', {})}
         />
       ) : (
         <FlatList
           data={products}
           keyExtractor={(item) => String(item.id)}
+          numColumns={2}
           renderItem={({ item }) => (
-            <ProductCard
-              product={item}
-              currencySymbol={currencySymbol}
-              onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-            />
+            <View style={styles.productCardWrapper}>
+              <ProductCard
+                product={item}
+                currencySymbol={currencySymbol}
+                onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+                onQuickAdd={() => navigation.navigate('POSTab', { selectProductId: item.id })}
+              />
+            </View>
           )}
           contentContainerStyle={styles.listContent}
           refreshing={refreshing}
           onRefresh={onRefresh}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.4}
+          showsVerticalScrollIndicator={false}
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.footerLoader}>
@@ -227,7 +236,7 @@ export default function ProductListScreen({ route, navigation }) {
           }
         />
       )}
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
@@ -240,60 +249,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.md,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
+    gap: 4,
   },
   addButtonText: {
-    ...TYPOGRAPHY.bodySmall,
     color: COLORS.textInverse,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontWeight: '700',
+    fontSize: 12,
   },
   searchSection: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.sm,
     paddingBottom: SPACING.xs,
   },
   filterBar: {
     paddingVertical: SPACING.xs,
   },
   categoriesBar: {
-    paddingBottom: SPACING.xs,
+    paddingBottom: SPACING.sm,
   },
   filterPills: {
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.xs,
   },
   pill: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: SPACING.sm,
+    borderColor: 'transparent',
+    marginRight: SPACING.xs,
   },
   pillSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
   },
   pillText: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    color: COLORS.textPrimary,
     fontWeight: '600',
   },
   pillTextSelected: {
     color: COLORS.textInverse,
   },
   catPill: {
-    paddingHorizontal: SPACING.sm + 2,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.surfaceSubtle,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     marginRight: SPACING.xs,
   },
   catPillSelected: {
-    backgroundColor: COLORS.accentLight,
+    backgroundColor: COLORS.primarySurface,
+    borderColor: COLORS.primary,
   },
   catPillText: {
     ...TYPOGRAPHY.caption,
@@ -301,12 +314,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   catPillTextSelected: {
-    color: COLORS.accentDark,
+    color: COLORS.primary,
     fontWeight: '700',
   },
   listContent: {
-    padding: SPACING.lg,
-    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: 90,
+  },
+  productCardWrapper: {
+    flex: 0.5,
+    margin: 4,
   },
   centerContainer: {
     flex: 1,

@@ -1,5 +1,6 @@
 /**
  * Sales Invoices & Transaction History Screen
+ * Safe-area aware boutique order history and transaction ledger.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,14 +9,16 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 import { getSalesPaginated } from '../../repositories/saleRepository';
 import { formatCurrency } from '../../utils/currency';
 import { formatDate, getDateRange } from '../../utils/date';
-import { COLORS, TYPOGRAPHY, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import DateFilterBar from '../../components/common/DateFilterBar';
@@ -71,120 +74,116 @@ export default function SalesHistoryScreen({ navigation }) {
         setRefreshing(false);
       }
     },
-    [dateRangeKey, search, page]
+    [page, dateRangeKey, search]
   );
 
   useEffect(() => {
     loadSales(true);
-  }, [dateRangeKey, search, dataVersion]);
+  }, [loadSales, dataVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadSales(true);
   };
 
-  const onEndReached = () => {
-    if (!loading && !loadingMore && hasMore) {
-      loadSales(false);
-    }
-  };
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="Sales History" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header
+        title="Sales Invoices"
+        subtitle="Completed Customer Receipts"
+        onBack={() => navigation.goBack()}
+      />
 
       <View style={styles.searchSection}>
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search by invoice number or customer..."
+          placeholder="Search by invoice # or client name..."
           onClear={() => setSearch('')}
         />
       </View>
 
       <DateFilterBar selectedRange={dateRangeKey} onSelectRange={setDateRangeKey} />
 
-      {loading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : sales.length === 0 ? (
-        <EmptyState
-          icon="receipt-outline"
-          title="No sales transactions found"
-          description="Try selecting a different date range or search keyword."
-          actionTitle="Open POS"
-          onAction={() => navigation.navigate('POSTab')}
-        />
-      ) : (
-        <FlatList
-          data={sales}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => {
-            let badgeVariant = 'success';
-            if (item.status === 'RETURNED') badgeVariant = 'danger';
-            else if (item.status === 'PARTIALLY_RETURNED') badgeVariant = 'warning';
-            else if (item.payment_status === 'UNPAID') badgeVariant = 'danger';
-            else if (item.payment_status === 'PARTIAL') badgeVariant = 'warning';
+      <FlatList
+        data={sales}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        onEndReached={() => {
+          if (!loadingMore && hasMore) loadSales(false);
+        }}
+        onEndReachedThreshold={0.3}
+        renderItem={({ item }) => {
+          const isReturned = item.status === 'RETURNED';
+          const isCredit = item.total_amount > (item.paid_amount || 0);
 
-            return (
-              <Card
-                style={styles.saleCard}
+          return (
+            <Card style={styles.card}>
+              <TouchableOpacity
                 onPress={() => navigation.navigate('SaleDetail', { saleId: item.id })}
+                activeOpacity={0.7}
               >
-                <View style={styles.saleRow}>
-                  <View style={styles.saleLeft}>
-                    <Text style={styles.invoiceNumber}>{item.invoice_number}</Text>
+                <View style={styles.topRow}>
+                  <View>
+                    <Text style={styles.invoiceNum}>#{item.invoice_number}</Text>
+                    <Text style={styles.dateText}>{formatDate(item.created_at)}</Text>
+                  </View>
+                  <Badge
+                    label={isReturned ? 'RETURNED' : isCredit ? 'DUE' : 'PAID'}
+                    variant={isReturned ? 'warning' : isCredit ? 'danger' : 'success'}
+                  />
+                </View>
+
+                <View style={styles.bottomRow}>
+                  <View style={styles.customerCol}>
                     <Text style={styles.customerName}>
-                      {item.customer_name_snapshot || 'Walk-in Customer'}
+                      {item.customer_name || 'Walk-in Guest'}
                     </Text>
-                    <Text style={styles.saleDate}>
-                      {formatDate(item.sale_date)} • {item.payment_method}
+                    <Text style={styles.paymentMethodText}>
+                      {item.payment_method || 'CASH'} • {item.total_items_count || 1} items
                     </Text>
                   </View>
 
-                  <View style={styles.saleRight}>
-                    <Text style={styles.totalAmount}>
+                  <View style={styles.amountCol}>
+                    <Text style={styles.amountVal}>
                       {formatCurrency(item.total_amount, currencySymbol)}
                     </Text>
-                    <Badge
-                      label={item.status !== 'COMPLETED' ? item.status : item.payment_status}
-                      variant={badgeVariant}
-                      size="sm"
-                    />
-                    {item.balance_amount > 0 && (
-                      <Text style={styles.balanceText}>
-                        Due: {formatCurrency(item.balance_amount, currencySymbol)}
+                    {isCredit && (
+                      <Text style={styles.dueVal}>
+                        due: {formatCurrency(item.total_amount - (item.paid_amount || 0), currencySymbol)}
                       </Text>
                     )}
                   </View>
                 </View>
-              </Card>
-            );
-          }}
-          contentContainerStyle={styles.listContent}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              </View>
-            ) : null
-          }
-        />
-      )}
-    </SafeAreaView>
+              </TouchableOpacity>
+            </Card>
+          );
+        }}
+        ListEmptyComponent={
+          !loading && (
+            <EmptyState
+              icon="receipt-outline"
+              title="No Invoices Found"
+              subtitle="Checkout sales from the POS screen to record transactions and track orders."
+              actionLabel="Go to POS Register"
+              onAction={() => navigation.navigate('POSTab')}
+            />
+          )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator style={styles.footerLoader} color={COLORS.primary} />
+          ) : null
+        }
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   searchSection: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
@@ -192,57 +191,64 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: SPACING.lg,
-    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xxxl,
   },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saleCard: {
-    padding: SPACING.md,
+  card: {
     marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
   },
-  saleRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
-  saleLeft: {
-    flex: 1,
-  },
-  invoiceNumber: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  customerName: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  saleDate: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textTertiary,
-    marginTop: 2,
-  },
-  saleRight: {
-    alignItems: 'flex-end',
-  },
-  totalAmount: {
+  invoiceNum: {
     ...TYPOGRAPHY.bodyMedium,
     fontWeight: '800',
     color: COLORS.textPrimary,
-    marginBottom: 4,
   },
-  balanceText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.warning,
-    fontWeight: '600',
+  dateText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  customerCol: {
+    flex: 1,
+  },
+  customerName: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  paymentMethodText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginTop: 2,
+  },
+  amountCol: {
+    alignItems: 'flex-end',
+  },
+  amountVal: {
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  dueVal: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.danger,
+    fontWeight: '700',
     marginTop: 2,
   },
   footerLoader: {
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
+    marginVertical: SPACING.md,
   },
 });

@@ -1,5 +1,6 @@
 /**
  * Stock Adjustment & Movement History Screen
+ * Safe-area aware boutique inventory auditing interface.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -19,6 +19,7 @@ import { getStockMovementsPaginated } from '../../repositories/stockMovementRepo
 import { MOVEMENT_TYPES } from '../../constants/config';
 import { formatDate } from '../../utils/date';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -26,9 +27,9 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 
 const ADJUSTMENT_OPTIONS = [
-  { id: MOVEMENT_TYPES.DAMAGE, label: 'Damaged Goods (-)' },
-  { id: MOVEMENT_TYPES.LOST, label: 'Lost / Shoplifted (-)' },
-  { id: MOVEMENT_TYPES.ADJUSTMENT, label: 'Correction / Audit (±)' },
+  { id: MOVEMENT_TYPES.DAMAGE, label: 'Damaged (-)' },
+  { id: MOVEMENT_TYPES.LOST, label: 'Lost/Theft (-)' },
+  { id: MOVEMENT_TYPES.ADJUSTMENT, label: 'Audit Count (±)' },
 ];
 
 export default function StockAdjustmentScreen({ route, navigation }) {
@@ -41,7 +42,7 @@ export default function StockAdjustmentScreen({ route, navigation }) {
   const [currentStock, setCurrentStock] = useState(route.params?.currentStock || 0);
   const [selectedType, setSelectedType] = useState(MOVEMENT_TYPES.DAMAGE);
   const [quantity, setQuantity] = useState('');
-  const [isAdd, setIsAdd] = useState(false); // for correction: add vs deduct
+  const [isAdd, setIsAdd] = useState(false);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -113,7 +114,7 @@ export default function StockAdjustmentScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
         title={showHistoryOnly ? 'Movement History' : 'Adjust Stock'}
         subtitle={variantTitle}
@@ -137,6 +138,7 @@ export default function StockAdjustmentScreen({ route, navigation }) {
                     key={opt.id}
                     style={[styles.typeButton, isSelected && styles.typeButtonSelected]}
                     onPress={() => setSelectedType(opt.id)}
+                    activeOpacity={0.8}
                   >
                     <Text style={[styles.typeButtonText, isSelected && styles.typeButtonTextSelected]}>
                       {opt.label}
@@ -151,12 +153,14 @@ export default function StockAdjustmentScreen({ route, navigation }) {
                 <TouchableOpacity
                   style={[styles.dirBtn, isAdd && styles.dirBtnActive]}
                   onPress={() => setIsAdd(true)}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.dirText, isAdd && styles.dirTextActive]}>+ Add Stock</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.dirBtn, !isAdd && styles.dirBtnActive]}
                   onPress={() => setIsAdd(false)}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.dirText, !isAdd && styles.dirTextActive]}>- Deduct Stock</Text>
                 </TouchableOpacity>
@@ -164,7 +168,7 @@ export default function StockAdjustmentScreen({ route, navigation }) {
             )}
 
             <Input
-              label="Quantity to Adjust"
+              label="Quantity to Adjust *"
               value={quantity}
               onChangeText={setQuantity}
               placeholder="e.g. 2"
@@ -172,16 +176,14 @@ export default function StockAdjustmentScreen({ route, navigation }) {
             />
 
             <Input
-              label="Reason / Audit Note *"
+              label="Audit Reason / Note *"
               value={reason}
               onChangeText={setReason}
-              placeholder="e.g. Stained collar discovered during weekly inventory check"
-              multiline
-              numberOfLines={2}
+              placeholder="e.g. Minor tear found during hanger inspection"
             />
 
             <Button
-              title="Confirm Stock Adjustment"
+              title="Apply Stock Adjustment"
               variant="primary"
               loading={submitting}
               onPress={handleAdjust}
@@ -190,159 +192,170 @@ export default function StockAdjustmentScreen({ route, navigation }) {
           </Card>
         )}
 
-        {/* Movement History Audit Log */}
-        <Text style={styles.historyTitle}>Audit Movement History</Text>
+        {/* Audit Log / History List */}
+        <View style={styles.historyHeader}>
+          <Text style={styles.sectionTitle}>Movement Log</Text>
+          <Text style={styles.historyCount}>{movements.length} events logged</Text>
+        </View>
 
-        {movements.length === 0 ? (
-          <Text style={styles.emptyText}>No stock movements recorded yet.</Text>
-        ) : (
+        {movements.length > 0 ? (
           movements.map((m) => {
-            const isPositive = m.quantity_change > 0;
+            const isPos = m.quantity_change > 0;
             return (
               <Card key={m.id} style={styles.movementCard}>
                 <View style={styles.movementRow}>
                   <View style={styles.movementLeft}>
-                    <View style={styles.badgeRow}>
+                    <View style={styles.typeBadgeRow}>
                       <Badge
-                        label={m.movement_type}
-                        variant={
-                          m.movement_type === 'PURCHASE' || m.movement_type === 'RETURN'
-                            ? 'success'
-                            : m.movement_type === 'SALE'
-                            ? 'info'
-                            : 'warning'
-                        }
-                        size="sm"
+                        label={m.movement_type.toUpperCase()}
+                        variant={isPos ? 'success' : 'default'}
                       />
-                      <Text style={styles.dateText}>{formatDate(m.created_at, true)}</Text>
+                      <Text style={styles.movementDate}>{formatDate(m.created_at)}</Text>
                     </View>
-
-                    <Text style={styles.variantInfo}>
-                      {m.product_name} ({m.size} / {m.color})
+                    <Text style={styles.movementTitle}>
+                      {m.product_name} ({m.size}/{m.color})
                     </Text>
-
-                    {m.reason ? <Text style={styles.reasonText}>{m.reason}</Text> : null}
+                    {m.reason ? <Text style={styles.reasonText}>"{m.reason}"</Text> : null}
                   </View>
 
                   <View style={styles.movementRight}>
-                    <Text
-                      style={[
-                        styles.changeText,
-                        isPositive ? styles.changePos : styles.changeNeg,
-                      ]}
-                    >
-                      {isPositive ? `+${m.quantity_change}` : m.quantity_change}
+                    <Text style={[styles.deltaVal, isPos ? styles.deltaPositive : styles.deltaNegative]}>
+                      {isPos ? `+${m.quantity_change}` : m.quantity_change}
                     </Text>
-                    <Text style={styles.balanceText}>Balance: {m.balance_after}</Text>
+                    <Text style={styles.afterStock}>bal: {m.stock_after}</Text>
                   </View>
                 </View>
               </Card>
             );
           })
+        ) : (
+          <Card style={styles.emptyCard}>
+            <Ionicons name="time-outline" size={32} color={COLORS.textTertiary} />
+            <Text style={styles.emptyText}>No inventory movements recorded yet.</Text>
+          </Card>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
   formCard: {
-    padding: SPACING.lg,
     marginBottom: SPACING.xl,
+    padding: SPACING.lg,
   },
   stockNoticeBox: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySurface,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
     marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(91,36,19,0.12)',
   },
   stockNoticeLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginBottom: 2,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.primary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   stockNoticeVal: {
     ...TYPOGRAPHY.h2,
-    color: COLORS.textPrimary,
+    color: COLORS.primary,
+    fontWeight: '800',
+    marginTop: 2,
   },
   fieldLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
     marginBottom: SPACING.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   typeRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: SPACING.md,
   },
   typeButton: {
+    flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.xs,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: COLORS.border,
+    alignItems: 'center',
   },
   typeButtonSelected: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   typeButtonText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
   },
   typeButtonTextSelected: {
-    fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.textInverse,
   },
   directionToggle: {
     flexDirection: 'row',
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.pill,
+    padding: 3,
     marginBottom: SPACING.md,
   },
   dirBtn: {
     flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
-    marginRight: 6,
+    borderRadius: RADIUS.pill,
   },
   dirBtnActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
   dirText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
   dirTextActive: {
-    color: COLORS.textInverse,
-    fontWeight: '600',
+    color: COLORS.textPrimary,
+    fontWeight: '800',
   },
   submitBtn: {
     marginTop: SPACING.sm,
+    borderRadius: RADIUS.pill,
   },
-  historyTitle: {
-    ...TYPOGRAPHY.h3,
-    color: COLORS.textPrimary,
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  emptyText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
+  sectionTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textPrimary,
+  },
+  historyCount: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
   },
   movementCard: {
-    padding: SPACING.md,
     marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
   },
   movementRow: {
     flexDirection: 'row',
@@ -353,42 +366,53 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: SPACING.md,
   },
-  badgeRow: {
+  typeBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginBottom: 4,
   },
-  dateText: {
-    ...TYPOGRAPHY.caption,
+  movementDate: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
-    marginLeft: SPACING.sm,
   },
-  variantInfo: {
+  movementTitle: {
     ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
   reasonText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
+    fontStyle: 'italic',
     marginTop: 2,
   },
   movementRight: {
     alignItems: 'flex-end',
   },
-  changeText: {
-    ...TYPOGRAPHY.h3,
-    fontWeight: '700',
+  deltaVal: {
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '800',
   },
-  changePos: {
+  deltaPositive: {
     color: COLORS.success,
   },
-  changeNeg: {
+  deltaNegative: {
     color: COLORS.danger,
   },
-  balanceText: {
-    ...TYPOGRAPHY.caption,
+  afterStock: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
     marginTop: 2,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+    gap: 8,
+  },
+  emptyText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textTertiary,
   },
 });

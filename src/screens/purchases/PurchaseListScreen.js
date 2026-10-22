@@ -1,5 +1,6 @@
 /**
  * Purchase Orders & Stock Inward Screen
+ * High-end inventory replenishment and vendor invoice registry.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
@@ -18,6 +18,7 @@ import { getPurchasesPaginated } from '../../repositories/purchaseRepository';
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
@@ -69,177 +70,149 @@ export default function PurchaseListScreen({ navigation }) {
 
   useEffect(() => {
     loadPurchases(true);
-  }, [loadPurchases, dataVersion]);
+  }, [dataVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadPurchases(true);
   };
 
-  const onEndReached = () => {
-    if (!loading && !loadingMore && hasMore) {
-      loadPurchases(false);
-    }
-  };
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title="Stock Purchases"
-        subtitle="Inward orders & supplier bills"
-        rightAction={
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => navigation.navigate('PurchaseForm', {})}
-          >
-            <Ionicons name="add" size={20} color={COLORS.textInverse} />
-            <Text style={styles.addBtnText}>New Purchase</Text>
-          </TouchableOpacity>
-        }
+        title="Stock Inward & POs"
+        subtitle="Wholesale Procurements"
+        onBack={() => navigation.goBack()}
+        rightIcon="add-outline"
+        onRightPress={() => navigation.navigate('PurchaseForm')}
       />
 
-      {loading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : purchases.length === 0 ? (
-        <EmptyState
-          icon="cart-outline"
-          title="No purchase orders recorded"
-          description="Record an inward stock purchase from your clothing suppliers."
-          actionTitle="Create Purchase"
-          onAction={() => navigation.navigate('PurchaseForm', {})}
-        />
-      ) : (
-        <FlatList
-          data={purchases}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => {
-            const isCancelled = item.status === 'CANCELLED';
-            return (
-              <Card
-                style={styles.purchaseCard}
+      <FlatList
+        data={purchases}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        onEndReached={() => {
+          if (!loadingMore && hasMore) loadPurchases(false);
+        }}
+        onEndReachedThreshold={0.3}
+        renderItem={({ item }) => {
+          const isReceived = item.status === 'RECEIVED';
+          return (
+            <Card style={styles.card}>
+              <TouchableOpacity
                 onPress={() => navigation.navigate('PurchaseDetail', { purchaseId: item.id })}
+                activeOpacity={0.7}
               >
-                <View style={styles.purchaseRow}>
-                  <View style={styles.leftCol}>
-                    <Text style={styles.invNumber}>{item.invoice_number}</Text>
-                    <Text style={styles.supplierText}>
-                      {item.supplier_name ? item.supplier_name : 'No Supplier Specified'}
-                    </Text>
-                    <Text style={styles.dateMeta}>
-                      {formatDate(item.purchase_date)} • {item.item_count} item{item.item_count !== 1 ? 's' : ''}
-                    </Text>
+                <View style={styles.topRow}>
+                  <View>
+                    <Text style={styles.poNumber}>PO #{item.po_number || item.id}</Text>
+                    <Text style={styles.dateText}>{formatDate(item.purchase_date || item.created_at)}</Text>
+                  </View>
+                  <Badge
+                    label={item.status || 'RECEIVED'}
+                    variant={isReceived ? 'success' : 'warning'}
+                  />
+                </View>
+
+                <View style={styles.bottomRow}>
+                  <View style={styles.supplierCol}>
+                    <Text style={styles.supplierLabel}>Vendor</Text>
+                    <Text style={styles.supplierName}>{item.supplier_name || 'Direct Wholesale'}</Text>
                   </View>
 
-                  <View style={styles.rightCol}>
-                    <Text style={styles.totalAmount}>
-                      {formatCurrency(item.total_amount, currencySymbol)}
+                  <View style={styles.amountCol}>
+                    <Text style={styles.amountLabel}>Total Cost</Text>
+                    <Text style={styles.amountVal}>
+                      {formatCurrency(item.total_cost || 0, currencySymbol)}
                     </Text>
-                    <Badge
-                      label={isCancelled ? 'CANCELLED' : item.payment_status}
-                      variant={isCancelled ? 'danger' : item.payment_status === 'PAID' ? 'success' : 'warning'}
-                      size="sm"
-                    />
-                    {item.balance_amount > 0 && !isCancelled && (
-                      <Text style={styles.payableDueText}>
-                        Payable: {formatCurrency(item.balance_amount, currencySymbol)}
-                      </Text>
-                    )}
                   </View>
                 </View>
-              </Card>
-            );
-          }}
-          contentContainerStyle={styles.listContent}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              </View>
-            ) : null
-          }
-        />
-      )}
-    </SafeAreaView>
+              </TouchableOpacity>
+            </Card>
+          );
+        }}
+        ListEmptyComponent={
+          !loading && (
+            <EmptyState
+              icon="cart-outline"
+              title="No Inward Purchases"
+              subtitle="Record wholesale stock batches from suppliers to automatically increase variant inventory."
+              actionLabel="Create Inward PO"
+              onAction={() => navigation.navigate('PurchaseForm')}
+            />
+          )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator style={styles.footerLoader} color={COLORS.primary} />
+          ) : null
+        }
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.md,
-  },
-  addBtnText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textInverse,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   listContent: {
     padding: SPACING.lg,
+    paddingBottom: SPACING.xxxl,
   },
-  purchaseCard: {
-    padding: SPACING.md,
+  card: {
     marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
   },
-  purchaseRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
-  leftCol: {
-    flex: 1,
-  },
-  invNumber: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  supplierText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  dateMeta: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textTertiary,
-    marginTop: 2,
-  },
-  rightCol: {
-    alignItems: 'flex-end',
-  },
-  totalAmount: {
+  poNumber: {
     ...TYPOGRAPHY.bodyMedium,
     fontWeight: '800',
     color: COLORS.textPrimary,
-    marginBottom: 4,
   },
-  payableDueText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.warning,
-    fontWeight: '600',
-    marginTop: 2,
+  dateText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  supplierCol: {
+    flex: 1,
+  },
+  supplierLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  supplierName: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  amountCol: {
+    alignItems: 'flex-end',
+  },
+  amountLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  amountVal: {
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
   footerLoader: {
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
+    marginVertical: SPACING.md,
   },
 });

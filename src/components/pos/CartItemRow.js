@@ -1,7 +1,7 @@
 /**
- * POS Cart Item Row
- * Displays clothing item, size/color variant, quantity stepper,
- * custom discount, and subtotal.
+ * Luxury Fashion Cart Item Row
+ * Matches reference image layout: rounded fashion thumbnail, title, size/color badge,
+ * quantity stepper [-] 1 [+], total price, and subtle delete icon.
  */
 
 import React from 'react';
@@ -12,86 +12,85 @@ import { formatCurrency } from '../../utils/currency';
 
 export default function CartItemRow({
   item,
-  currencySymbol = 'Rs',
   onIncrement,
   onDecrement,
   onRemove,
-  onEditDiscount,
+  currencySymbol = 'Rs',
 }) {
-  const unitPrice = item.customUnitPrice !== undefined && item.customUnitPrice !== null
-    ? item.customUnitPrice
-    : item.sellingPrice;
+  const lineTotal = item.unit_price * item.quantity;
 
   return (
     <View style={styles.container}>
-      <View style={styles.mainInfo}>
+      {/* Thumbnail */}
+      <View style={styles.thumbnailContainer}>
+        <Ionicons name="shirt-outline" size={24} color={COLORS.primaryLight} />
+      </View>
+
+      {/* Item Info */}
+      <View style={styles.detailsContainer}>
         <View style={styles.titleRow}>
           <Text style={styles.productName} numberOfLines={1}>
-            {item.productName}
+            {item.product_name}
           </Text>
           <TouchableOpacity
             onPress={onRemove}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.deleteButton}
           >
-            <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+            <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.variantBadgeRow}>
-          <View style={styles.variantTag}>
-            <Text style={styles.variantTagText}>Size: {item.size}</Text>
-          </View>
-          <View style={styles.variantTag}>
-            <Text style={styles.variantTagText}>Color: {item.color}</Text>
-          </View>
-          {item.currentStock !== undefined && (
-            <Text style={styles.stockNotice}>
-              ({item.currentStock} in stock)
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.actionRow}>
-          {/* Stepper */}
-          <View style={styles.stepper}>
-            <TouchableOpacity
-              style={styles.stepperBtn}
-              onPress={onDecrement}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-
-            <Text style={styles.qtyText}>{item.quantity}</Text>
-
-            <TouchableOpacity
-              style={styles.stepperBtn}
-              onPress={onIncrement}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <Ionicons name="add" size={16} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Price & Discount */}
-          <TouchableOpacity
-            style={styles.priceContainer}
-            onPress={onEditDiscount}
-          >
-            <View style={styles.priceCol}>
-              <Text style={styles.unitPriceText}>
-                {formatCurrency(unitPrice, currencySymbol)} × {item.quantity}
-              </Text>
-              {item.discountAmount > 0 && (
-                <Text style={styles.discountText}>
-                  Disc: -{formatCurrency(item.discountAmount, currencySymbol)}
-                </Text>
-              )}
+        {/* Variant Pills (Size & Color) */}
+        <View style={styles.variantPillContainer}>
+          {item.size ? (
+            <View style={styles.variantChip}>
+              <Text style={styles.variantText}>Size: {item.size}</Text>
             </View>
-            <Text style={styles.subtotalText}>
-              {formatCurrency(item.subtotal, currencySymbol)}
+          ) : null}
+          {item.color ? (
+            <View style={styles.variantChip}>
+              <Text style={styles.variantText}>{item.color}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Bottom Stepper & Price Row */}
+        <View style={styles.bottomRow}>
+          {/* Stepper [-] qty [+] */}
+          <View style={styles.stepperContainer}>
+            <TouchableOpacity
+              style={styles.stepBtn}
+              onPress={onDecrement}
+              activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="remove" size={14} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+
+            <Text style={styles.quantityText}>{item.quantity}</Text>
+
+            <TouchableOpacity
+              style={styles.stepBtn}
+              onPress={onIncrement}
+              activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="add" size={14} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Line Total */}
+          <View style={styles.priceContainer}>
+            <Text style={styles.price}>
+              {formatCurrency(lineTotal, currencySymbol)}
             </Text>
-          </TouchableOpacity>
+            {item.quantity > 1 && (
+              <Text style={styles.unitPrice}>
+                {formatCurrency(item.unit_price, currencySymbol)} each
+              </Text>
+            )}
+          </View>
         </View>
       </View>
     </View>
@@ -100,99 +99,97 @@ export default function CartItemRow({
 
 const styles = StyleSheet.create({
   container: {
+    flexDirection: 'row',
     backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: COLORS.border,
   },
-  mainInfo: {
+  thumbnailContainer: {
+    width: 68,
+    height: 78,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  detailsContainer: {
     flex: 1,
+    justifyContent: 'space-between',
   },
   titleRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
   },
   productName: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '600',
+    ...TYPOGRAPHY.h3,
+    fontSize: 14,
     color: COLORS.textPrimary,
     flex: 1,
-    marginRight: SPACING.sm,
+    marginRight: SPACING.xs,
   },
-  variantBadgeRow: {
+  deleteButton: {
+    padding: 2,
+  },
+  variantPillContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+    marginVertical: 4,
   },
-  variantTag: {
+  variantChip: {
     backgroundColor: COLORS.surfaceSubtle,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: RADIUS.xs,
-    marginRight: SPACING.xs,
+    borderRadius: RADIUS.pill,
   },
-  variantTagText: {
+  variantText: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
-    fontWeight: '500',
+    fontSize: 11,
   },
-  stockNotice: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textTertiary,
-    marginLeft: SPACING.xs,
-  },
-  actionRow: {
+  bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 2,
+    marginTop: 4,
   },
-  stepper: {
+  stepperContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
-    padding: 2,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
-  stepperBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.xs,
+  stepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyText: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
+  quantityText: {
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 13,
     color: COLORS.textPrimary,
-    minWidth: 32,
-    textAlign: 'center',
+    paddingHorizontal: 10,
   },
   priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  priceCol: {
     alignItems: 'flex-end',
-    marginRight: SPACING.md,
   },
-  unitPriceText: {
+  price: {
+    ...TYPOGRAPHY.price,
+    color: COLORS.primary,
+  },
+  unitPrice: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-  },
-  discountText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.danger,
-    fontWeight: '500',
-  },
-  subtotalText: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: COLORS.textTertiary,
   },
 });

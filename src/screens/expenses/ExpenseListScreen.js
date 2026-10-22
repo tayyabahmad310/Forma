@@ -1,5 +1,6 @@
 /**
  * Operating Business Expenses Screen
+ * Luxury boutique store ledger with safe-area insets and category pills.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -25,6 +25,7 @@ import { EXPENSE_CATEGORIES } from '../../constants/config';
 import { formatCurrency, toMinorUnits, toMajorUnits } from '../../utils/currency';
 import { formatDate, getTodayDateString, getDateRange } from '../../utils/date';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import DateFilterBar from '../../components/common/DateFilterBar';
 import Card from '../../components/common/Card';
@@ -91,19 +92,18 @@ export default function ExpenseListScreen({ navigation }) {
     setCategory(exp.category);
     setAmount(String(toMajorUnits(exp.amount)));
     setExpenseDate(exp.expense_date);
-    setPaymentMethod(exp.payment_method);
+    setPaymentMethod(exp.payment_method || 'CASH');
     setNotes(exp.notes || '');
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert('Required', 'Please enter expense title.');
+      Alert.alert('Required', 'Please enter an expense title.');
       return;
     }
-    const minor = toMinorUnits(amount);
-    if (minor <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid positive expense amount.');
       return;
     }
 
@@ -112,7 +112,7 @@ export default function ExpenseListScreen({ navigation }) {
       const payload = {
         title: title.trim(),
         category,
-        amount: minor,
+        amount: toMinorUnits(amount),
         expenseDate,
         paymentMethod,
         notes: notes.trim() || null,
@@ -124,8 +124,8 @@ export default function ExpenseListScreen({ navigation }) {
         await createExpense(payload);
       }
 
-      setShowModal(false);
       notifyDataChanged();
+      setShowModal(false);
       loadExpenses();
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to save expense');
@@ -149,26 +149,22 @@ export default function ExpenseListScreen({ navigation }) {
     ]);
   };
 
-  const totalExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenseMinor = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title="Operating Expenses"
-        subtitle={`Total: ${formatCurrency(totalExpenseAmount, currencySymbol)}`}
+        title="Store Expenses"
+        subtitle="Operational Overhead & Bills"
         onBack={() => navigation.goBack()}
-        rightAction={
-          <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
-            <Ionicons name="add" size={20} color={COLORS.textInverse} />
-            <Text style={styles.addBtnText}>Add</Text>
-          </TouchableOpacity>
-        }
+        rightIcon="add-outline"
+        onRightPress={openAddModal}
       />
 
       <DateFilterBar selectedRange={dateRangeKey} onSelectRange={setDateRangeKey} />
 
       {/* Category Pills */}
-      <View style={styles.categoryPillsBar}>
+      <View style={styles.categoryBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryPills}>
           {['All', ...EXPENSE_CATEGORIES].map((c) => {
             const isSelected = selectedCategory === c;
@@ -177,6 +173,7 @@ export default function ExpenseListScreen({ navigation }) {
                 key={c}
                 style={[styles.catPill, isSelected && styles.catPillSelected]}
                 onPress={() => setSelectedCategory(c)}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.catPillText, isSelected && styles.catPillTextSelected]}>
                   {c}
@@ -187,78 +184,89 @@ export default function ExpenseListScreen({ navigation }) {
         </ScrollView>
       </View>
 
-      {expenses.length === 0 && !loading ? (
-        <EmptyState
-          icon="wallet-outline"
-          title="No expenses recorded"
-          description="Log daily shop running costs such as rent, utility bills, tea, and packaging."
-          actionTitle="Record Expense"
-          onAction={openAddModal}
-        />
-      ) : (
-        <FlatList
-          data={expenses}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <Card style={styles.card} onPress={() => openEditModal(item)}>
-              <View style={styles.row}>
-                <View style={styles.leftCol}>
-                  <Text style={styles.title}>{item.title}</Text>
-                  <Text style={styles.metaText}>
-                    {item.category} • {formatDate(item.expense_date)} • {item.payment_method}
-                  </Text>
-                  {item.notes ? <Text style={styles.notesText}>{item.notes}</Text> : null}
+      {/* Total Banner */}
+      <View style={styles.totalBanner}>
+        <Text style={styles.totalLabel}>Total Period Expenses</Text>
+        <Text style={styles.totalVal}>{formatCurrency(totalExpenseMinor, currencySymbol)}</Text>
+      </View>
+
+      <FlatList
+        data={expenses}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => (
+          <Card style={styles.expenseCard}>
+            <View style={styles.expenseRow}>
+              <View style={styles.expenseLeft}>
+                <View style={styles.tagRow}>
+                  <View style={styles.catBadge}>
+                    <Text style={styles.catText}>{item.category}</Text>
+                  </View>
+                  <Text style={styles.dateText}>{formatDate(item.expense_date)}</Text>
                 </View>
 
-                <View style={styles.rightCol}>
-                  <Text style={styles.amount}>
-                    {formatCurrency(item.amount, currencySymbol)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleDelete(item.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ marginTop: 6 }}
-                  >
+                <Text style={styles.expenseTitle}>{item.title}</Text>
+                {item.notes ? <Text style={styles.notesText}>"{item.notes}"</Text> : null}
+              </View>
+
+              <View style={styles.expenseRight}>
+                <Text style={styles.expenseAmount}>
+                  -{formatCurrency(item.amount, currencySymbol)}
+                </Text>
+
+                <View style={styles.actionRow}>
+                  <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
+                    <Ionicons name="create-outline" size={16} color={COLORS.textTertiary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.iconBtn}>
                     <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
-            </Card>
-          )}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+            </View>
+          </Card>
+        )}
+        ListEmptyComponent={
+          !loading && (
+            <EmptyState
+              icon="wallet-outline"
+              title="No Expenses Logged"
+              subtitle="Keep track of store rent, utilities, electricity, and salaries for accurate net profit."
+              actionLabel="Add Expense"
+              onAction={openAddModal}
+            />
+          )
+        }
+      />
 
-      {/* Expense Modal */}
+      {/* Add / Edit Expense Modal */}
       <ModalSheet
         visible={showModal}
         onClose={() => setShowModal(false)}
-        title={editingId ? 'Edit Expense' : 'Record Operating Expense'}
-        subtitle="Shop operating expense entry"
+        title={editingId ? 'Edit Expense' : 'Log Store Expense'}
+        subtitle="Record shop operational cost"
       >
         <Input
           label="Expense Title *"
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Electricity Bill Oct 2026"
+          placeholder="e.g. Electricity Bill or Shop Rent"
         />
 
         <Text style={styles.fieldLabel}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modalPillsRow}>
-          {EXPENSE_CATEGORIES.map((c) => {
-            const isSelected = category === c;
-            return (
-              <TouchableOpacity
-                key={c}
-                style={[styles.modalChip, isSelected && styles.modalChipSelected]}
-                onPress={() => setCategory(c)}
-              >
-                <Text style={[styles.modalChipText, isSelected && styles.modalChipTextSelected]}>
-                  {c}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modalPills}>
+          {EXPENSE_CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.modalChip, category === cat && styles.modalChipSelected]}
+              onPress={() => setCategory(cat)}
+            >
+              <Text style={[styles.modalChipText, category === cat && styles.modalChipTextSelected]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         <Input
@@ -270,127 +278,156 @@ export default function ExpenseListScreen({ navigation }) {
         />
 
         <Input
-          label="Expense Date (YYYY-MM-DD)"
-          value={expenseDate}
-          onChangeText={setExpenseDate}
-          placeholder="YYYY-MM-DD"
-        />
-
-        <Input
-          label="Notes / Memo"
+          label="Notes / Voucher Reference"
           value={notes}
           onChangeText={setNotes}
-          placeholder="e.g. Paid in cash by store manager"
+          placeholder="Optional notes or receipt number"
         />
 
         <Button
-          title={editingId ? 'Save Changes' : 'Record Expense'}
+          title="Save Expense Record"
           variant="primary"
           loading={saving}
           onPress={handleSave}
-          style={{ marginTop: 12 }}
+          style={styles.modalBtn}
         />
       </ModalSheet>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.md,
-  },
-  addBtnText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textInverse,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  categoryPillsBar: {
+  categoryBar: {
     paddingVertical: SPACING.xs,
   },
   categoryPills: {
     paddingHorizontal: SPACING.lg,
+    gap: 8,
   },
   catPill: {
-    paddingHorizontal: SPACING.sm + 2,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    marginRight: SPACING.xs,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   catPillSelected: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   catPillText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   catPillTextSelected: {
     color: COLORS.textInverse,
-    fontWeight: '700',
   },
-  listContent: {
-    padding: SPACING.lg,
-  },
-  card: {
+  totalBanner: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  row: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  leftCol: {
-    flex: 1,
-    marginRight: SPACING.sm,
+  totalLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  title: {
+  totalVal: {
+    ...TYPOGRAPHY.h3,
+    fontWeight: '800',
+    color: COLORS.danger,
+  },
+  listContent: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xxxl,
+  },
+  expenseCard: {
+    marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  expenseLeft: {
+    flex: 1,
+    marginRight: SPACING.md,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  catBadge: {
+    backgroundColor: COLORS.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.pill,
+  },
+  catText: {
+    ...TYPOGRAPHY.captionSmall,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  dateText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  expenseTitle: {
     ...TYPOGRAPHY.bodyMedium,
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  metaText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
   notesText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
+    fontStyle: 'italic',
     marginTop: 2,
   },
-  rightCol: {
+  expenseRight: {
     alignItems: 'flex-end',
+    gap: 6,
   },
-  amount: {
+  expenseAmount: {
     ...TYPOGRAPHY.bodyMedium,
     fontWeight: '800',
     color: COLORS.danger,
   },
-  fieldLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 6,
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  modalPillsRow: {
+  iconBtn: {
+    padding: 2,
+  },
+  fieldLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+    textTransform: 'uppercase',
+  },
+  modalPills: {
     marginBottom: SPACING.md,
   },
   modalChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
     marginRight: 6,
     borderWidth: 1,
@@ -401,11 +438,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   modalChipText: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textPrimary,
   },
   modalChipTextSelected: {
     color: COLORS.textInverse,
     fontWeight: '700',
+  },
+  modalBtn: {
+    marginTop: SPACING.md,
+    borderRadius: RADIUS.pill,
   },
 });

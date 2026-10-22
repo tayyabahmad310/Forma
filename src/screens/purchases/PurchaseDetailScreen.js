@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
@@ -17,6 +16,7 @@ import { getPurchaseById, getPurchaseItems, cancelPurchase } from '../../reposit
 import { formatCurrency } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
@@ -59,10 +59,11 @@ export default function PurchaseDetailScreen({ route, navigation }) {
               setCancelling(true);
               await cancelPurchase(purchaseId);
               notifyDataChanged();
-              loadDetails();
-              Alert.alert('Cancelled', 'Purchase cancelled and stock reversed successfully.');
+              Alert.alert('Cancelled', 'Purchase order cancelled and stock reversed.', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ]);
             } catch (err) {
-              Alert.alert('Cannot Cancel', err.message || 'Failed to cancel purchase.');
+              Alert.alert('Error', err.message || 'Could not cancel purchase.');
             } finally {
               setCancelling(false);
             }
@@ -74,245 +75,182 @@ export default function PurchaseDetailScreen({ route, navigation }) {
 
   if (!purchase) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
         <Header title="Purchase Details" onBack={() => navigation.goBack()} />
-      </SafeAreaView>
+      </ScreenContainer>
     );
   }
 
   const isCancelled = purchase.status === 'CANCELLED';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title={purchase.invoice_number}
-        subtitle={formatDate(purchase.purchase_date)}
+        title={`PO #${purchase.po_number || purchase.id}`}
+        subtitle={formatDate(purchase.purchase_date || purchase.created_at)}
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* Master Status Card */}
+        {/* Header Summary */}
         <Card style={styles.card}>
-          <View style={styles.statusRow}>
+          <View style={styles.topRow}>
             <View>
-              <Text style={styles.invoiceTitle}>{purchase.invoice_number}</Text>
-              <Text style={styles.supplierText}>
-                Supplier: {purchase.supplier_name || 'Direct / Unassigned'}
-              </Text>
-              {purchase.supplier_phone ? (
-                <Text style={styles.supplierPhone}>Tel: {purchase.supplier_phone}</Text>
+              <Text style={styles.supplierName}>{purchase.supplier_name || 'Direct Wholesale'}</Text>
+              {purchase.invoice_number ? (
+                <Text style={styles.invoiceText}>Vendor Ref: #{purchase.invoice_number}</Text>
               ) : null}
             </View>
             <Badge
-              label={isCancelled ? 'CANCELLED' : purchase.payment_status}
-              variant={isCancelled ? 'danger' : purchase.payment_status === 'PAID' ? 'success' : 'warning'}
+              label={purchase.status || 'RECEIVED'}
+              variant={isCancelled ? 'danger' : 'success'}
             />
+          </View>
+
+          <View style={styles.summaryBar}>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Total Cost</Text>
+              <Text style={styles.summaryVal}>
+                {formatCurrency(purchase.total_amount, currencySymbol)}
+              </Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Paid</Text>
+              <Text style={styles.summaryVal}>
+                {formatCurrency(purchase.paid_amount || 0, currencySymbol)}
+              </Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Items</Text>
+              <Text style={styles.summaryVal}>{items.length}</Text>
+            </View>
           </View>
         </Card>
 
-        {/* Line Items */}
+        {/* Line Items Card */}
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Inward Items ({items.length})</Text>
+          <Text style={styles.cardTitle}>Inward Clothing Items</Text>
 
-          {items.map((it) => (
-            <View key={it.id} style={styles.itemRow}>
-              <View style={styles.itemLeft}>
+          {items.map((it, idx) => (
+            <View key={idx} style={styles.itemRow}>
+              <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{it.product_name}</Text>
                 <Text style={styles.itemVariant}>
-                  Size: {it.size} | Color: {it.color}
+                  {it.size} / {it.color} • {it.quantity} units @ {formatCurrency(it.unit_cost, currencySymbol)}
                 </Text>
               </View>
-              <View style={styles.itemRight}>
-                <Text style={styles.itemQtyCost}>
-                  {it.quantity} pcs @ {formatCurrency(it.unit_cost, currencySymbol)}
-                </Text>
-                <Text style={styles.itemSubtotal}>
-                  {formatCurrency(it.subtotal, currencySymbol)}
-                </Text>
-              </View>
+              <Text style={styles.itemSubtotal}>
+                {formatCurrency(it.subtotal, currencySymbol)}
+              </Text>
             </View>
           ))}
         </Card>
 
-        {/* Financial Summary */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Financial Breakdown</Text>
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Subtotal</Text>
-            <Text style={styles.calcVal}>{formatCurrency(purchase.subtotal, currencySymbol)}</Text>
-          </View>
-          {purchase.discount_amount > 0 && (
-            <View style={styles.calcRow}>
-              <Text style={styles.calcLabel}>Discount</Text>
-              <Text style={styles.calcDiscount}>
-                -{formatCurrency(purchase.discount_amount, currencySymbol)}
-              </Text>
-            </View>
-          )}
-          {purchase.additional_costs > 0 && (
-            <View style={styles.calcRow}>
-              <Text style={styles.calcLabel}>Shipping / Other Costs</Text>
-              <Text style={styles.calcVal}>
-                +{formatCurrency(purchase.additional_costs, currencySymbol)}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.divider} />
-
-          <View style={styles.calcRow}>
-            <Text style={styles.totalLabel}>Total Purchase</Text>
-            <Text style={styles.totalVal}>{formatCurrency(purchase.total_amount, currencySymbol)}</Text>
-          </View>
-
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Paid Amount</Text>
-            <Text style={styles.paidVal}>{formatCurrency(purchase.paid_amount, currencySymbol)}</Text>
-          </View>
-
-          {purchase.balance_amount > 0 && !isCancelled && (
-            <View style={styles.calcRow}>
-              <Text style={styles.balanceDueLabel}>Remaining Payable to Supplier</Text>
-              <Text style={styles.balanceDueVal}>
-                {formatCurrency(purchase.balance_amount, currencySymbol)}
-              </Text>
-            </View>
-          )}
-        </Card>
-
+        {/* Cancellation Action */}
         {!isCancelled && (
           <Button
-            title="Cancel Purchase & Reverse Stock"
-            variant="danger"
+            title="Cancel & Reverse Stock Inward"
+            variant="outline"
             loading={cancelling}
             onPress={handleCancel}
             style={styles.cancelBtn}
           />
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
   card: {
+    marginBottom: SPACING.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    borderRadius: RADIUS.xl,
   },
-  statusRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
   },
-  invoiceTitle: {
+  supplierName: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
   },
-  supplierText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  supplierPhone: {
-    ...TYPOGRAPHY.caption,
+  invoiceText: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
     marginTop: 2,
   },
-  sectionTitle: {
+  summaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  summaryCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginBottom: 2,
+  },
+  summaryVal: {
     ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: COLORS.borderLight,
+  },
+  cardTitle: {
+    ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
     marginBottom: SPACING.md,
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
-  itemLeft: {
+  itemInfo: {
     flex: 1,
+    marginRight: SPACING.md,
   },
   itemName: {
     ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
   itemVariant: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
     marginTop: 2,
-  },
-  itemRight: {
-    alignItems: 'flex-end',
-  },
-  itemQtyCost: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
   },
   itemSubtotal: {
     ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginTop: 2,
-  },
-  calcRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  calcLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-  },
-  calcVal: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-  },
-  calcDiscount: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.danger,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.borderLight,
-    marginVertical: SPACING.sm,
-  },
-  totalLabel: {
-    ...TYPOGRAPHY.bodyMedium,
     fontWeight: '800',
-  },
-  totalVal: {
-    ...TYPOGRAPHY.h3,
-    fontWeight: '800',
-  },
-  paidVal: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.success,
-  },
-  balanceDueLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.warning,
-  },
-  balanceDueVal: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '800',
-    color: COLORS.warning,
+    color: COLORS.primary,
   },
   cancelBtn: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+    borderColor: COLORS.danger,
+    borderRadius: RADIUS.pill,
   },
 });

@@ -1,5 +1,6 @@
 /**
- * Reusable Card Component
+ * Luxury Fashion Card Component
+ * Crisp rounded container, warm subtle border, delicate shadow.
  */
 
 import React from 'react';
@@ -8,39 +9,69 @@ import { COLORS, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
 
 export default function Card({
   children,
+  style,
   onPress = null,
-  style = null,
-  elevated = true,
+  activeOpacity = 0.75,
+  variant = 'default', // 'default' | 'elevated' | 'subtle' | 'outline'
 }) {
-  const Container = onPress ? TouchableOpacity : View;
+  const getVariantStyle = () => {
+    switch (variant) {
+      case 'elevated':
+        return styles.elevatedCard;
+      case 'subtle':
+        return styles.subtleCard;
+      case 'outline':
+        return styles.outlineCard;
+      case 'default':
+      default:
+        return styles.defaultCard;
+    }
+  };
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={[styles.baseCard, getVariantStyle(), style]}
+        onPress={onPress}
+        activeOpacity={activeOpacity}
+      >
+        {children}
+      </TouchableOpacity>
+    );
+  }
 
   return (
-    <Container
-      style={[
-        styles.card,
-        elevated ? SHADOWS.card : styles.outline,
-        style,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
+    <View style={[styles.baseCard, getVariantStyle(), style]}>
       {children}
-    </Container>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
+  baseCard: {
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+  },
+  defaultCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
+  },
+  elevatedCard: {
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
+    ...SHADOWS.card,
   },
-  outline: {
+  subtleCard: {
+    backgroundColor: COLORS.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  outlineCard: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
     borderColor: COLORS.border,
-    elevation: 0,
-    shadowOpacity: 0,
   },
 });

@@ -1,13 +1,14 @@
 /**
- * Bottom Tab Navigator
- * Inspired by clothing store aesthetics with custom styled tab bar.
+ * Luxury Fashion Bottom Tab Navigator
+ * Floating pill-styled navigation bar with safe-area protection for Android & iOS.
  */
 
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import ProductListScreen from '../screens/products/ProductListScreen';
@@ -18,14 +19,24 @@ import FinancialReportsScreen from '../screens/reports/FinancialReportsScreen';
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 16);
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textTertiary,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: 60 + bottomPadding,
+            paddingBottom: bottomPadding,
+          },
+        ],
         tabBarLabelStyle: styles.tabLabel,
+        tabBarItemStyle: styles.tabItem,
       }}
     >
       <Tab.Screen
@@ -34,7 +45,10 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+            <View style={styles.iconContainer}>
+              <Ionicons name={focused ? 'home' : 'home-outline'} size={21} color={color} />
+              {focused && <View style={styles.activeDot} />}
+            </View>
           ),
         }}
       />
@@ -45,7 +59,10 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: 'Inventory',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'shirt' : 'shirt-outline'} size={22} color={color} />
+            <View style={styles.iconContainer}>
+              <Ionicons name={focused ? 'shirt' : 'shirt-outline'} size={21} color={color} />
+              {focused && <View style={styles.activeDot} />}
+            </View>
           ),
         }}
       />
@@ -57,7 +74,7 @@ export default function TabNavigator() {
           tabBarLabel: 'POS',
           tabBarIcon: ({ focused }) => (
             <View style={[styles.posTabIcon, focused && styles.posTabIconActive]}>
-              <Ionicons name="cash" size={22} color={COLORS.textInverse} />
+              <Ionicons name="card" size={20} color={COLORS.textInverse} />
             </View>
           ),
         }}
@@ -69,7 +86,10 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: 'Purchases',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'cart' : 'cart-outline'} size={22} color={color} />
+            <View style={styles.iconContainer}>
+              <Ionicons name={focused ? 'bag-handle' : 'bag-handle-outline'} size={21} color={color} />
+              {focused && <View style={styles.activeDot} />}
+            </View>
           ),
         }}
       />
@@ -78,9 +98,12 @@ export default function TabNavigator() {
         name="ReportsTab"
         component={FinancialReportsScreen}
         options={{
-          tabBarLabel: 'Reports',
+          tabBarLabel: 'Analytics',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'pie-chart' : 'pie-chart-outline'} size={22} color={color} />
+            <View style={styles.iconContainer}>
+              <Ionicons name={focused ? 'pie-chart' : 'pie-chart-outline'} size={21} color={color} />
+              {focused && <View style={styles.activeDot} />}
+            </View>
           ),
         }}
       />
@@ -92,26 +115,41 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+    borderTopColor: COLORS.border,
     paddingTop: 8,
+    ...SHADOWS.card,
+  },
+  tabItem: {
+    paddingVertical: 2,
   },
   tabLabel: {
     ...TYPOGRAPHY.caption,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
+    marginTop: 2,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 26,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+    marginTop: 2,
   },
   posTabIcon: {
     width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
+    height: 38,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    ...SHADOWS.subtle,
   },
   posTabIconActive: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.primary,
   },
 });

@@ -1,5 +1,6 @@
 /**
  * Customer Profile & Transaction Ledger Screen
+ * High-end boutique customer profile, order history, and payment collection.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -18,7 +18,8 @@ import { getCustomerById, getCustomerSales } from '../../repositories/customerRe
 import { recordSalePayment } from '../../repositories/paymentRepository';
 import { formatCurrency, toMinorUnits } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
@@ -59,18 +60,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   const openPaymentForSale = (sale) => {
     setSelectedSaleToPay(sale);
-    setPaymentAmount(String(sale.balance_amount / 100));
+    const balanceRemaining = Math.max(0, sale.total_amount - (sale.paid_amount || 0));
+    setPaymentAmount(String(balanceRemaining / 100));
   };
 
-  const handleConfirmPayment = async () => {
-    if (!selectedSaleToPay) return;
-    const minor = toMinorUnits(paymentAmount);
-    if (minor <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a positive amount.');
-      return;
-    }
-    if (minor > selectedSaleToPay.balance_amount) {
-      Alert.alert('Excess Amount', 'Amount exceeds the sale invoice balance.');
+  const handleRecordPayment = async () => {
+    if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid payment amount.');
       return;
     }
 
@@ -78,18 +74,17 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setSubmittingPayment(true);
       await recordSalePayment({
         saleId: selectedSaleToPay.id,
-        amount: minor,
+        amount: toMinorUnits(paymentAmount),
         paymentMethod,
-        notes: `Customer balance collection for ${customer.name}`,
+        notes: `Customer ledger collection for Invoice #${selectedSaleToPay.invoice_number}`,
       });
 
-      setSelectedSaleToPay(null);
-      setPaymentAmount('');
       notifyDataChanged();
+      setSelectedSaleToPay(null);
+      Alert.alert('Payment Recorded', 'Credit balance updated successfully.');
       loadData();
-      Alert.alert('Success', 'Payment collected and customer balance updated.');
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to record payment');
+      Alert.alert('Payment Error', err.message || 'Could not record payment.');
     } finally {
       setSubmittingPayment(false);
     }
@@ -97,170 +92,176 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   if (!customer && !loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Header title="Customer Not Found" onBack={() => navigation.goBack()} />
-      </SafeAreaView>
+      <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+        <Header title="Client Not Found" onBack={() => navigation.goBack()} />
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>Customer record not found.</Text>
+        </View>
+      </ScreenContainer>
     );
   }
 
-  const outstandingBalance = customer?.outstanding_balance || 0;
+  const hasDue = (customer?.current_balance || 0) > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title={customer?.name || 'Customer Details'}
-        subtitle="Customer ledger & purchase history"
+        title={customer?.name || 'Client Details'}
+        subtitle="VIP Account Profile"
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
-        <Card style={styles.card}>
+        <Card style={styles.profileCard}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={28} color={COLORS.primary} />
+              <Text style={styles.avatarText}>
+                {(customer?.name || 'C').charAt(0).toUpperCase()}
+              </Text>
             </View>
-            <View style={styles.avatarInfo}>
-              <Text style={styles.name}>{customer?.name}</Text>
+            <View style={styles.profileInfo}>
+              <Text style={styles.clientName}>{customer?.name}</Text>
               {customer?.phone ? (
-                <Text style={styles.phone}>Phone: {customer.phone}</Text>
+                <Text style={styles.clientPhone}>
+                  <Ionicons name="call-outline" size={13} color={COLORS.textTertiary} /> {customer.phone}
+                </Text>
               ) : null}
               {customer?.notes ? (
-                <Text style={styles.notesText}>{customer.notes}</Text>
+                <Text style={styles.clientNotes}>"{customer.notes}"</Text>
               ) : null}
             </View>
           </View>
 
-          <View style={styles.ledgerRow}>
-            <View style={styles.ledgerCol}>
-              <Text style={styles.ledgerLabel}>Total Orders</Text>
-              <Text style={styles.ledgerVal}>{customer?.total_orders || 0}</Text>
+          {/* Balance & Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCol}>
+              <Text style={styles.statLabel}>Total Purchases</Text>
+              <Text style={styles.statVal}>
+                {formatCurrency(customer?.total_spent || 0, currencySymbol)}
+              </Text>
             </View>
-            <View style={styles.ledgerDivider} />
-            <View style={styles.ledgerCol}>
-              <Text style={styles.ledgerLabel}>Outstanding Credit</Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statCol}>
+              <Text style={styles.statLabel}>Current Balance</Text>
               <Text
                 style={[
-                  styles.ledgerVal,
-                  outstandingBalance > 0 ? { color: COLORS.warning } : { color: COLORS.success },
+                  styles.statVal,
+                  hasDue ? { color: COLORS.danger } : { color: COLORS.success },
                 ]}
               >
-                {formatCurrency(outstandingBalance, currencySymbol)}
+                {hasDue
+                  ? formatCurrency(customer.current_balance, currencySymbol)
+                  : 'Settled'}
               </Text>
             </View>
           </View>
         </Card>
 
-        {/* Orders List */}
-        <Text style={styles.sectionTitle}>Order Invoices ({sales.length})</Text>
+        {/* Order History */}
+        <View style={styles.historyHeader}>
+          <Text style={styles.sectionTitle}>Transaction History</Text>
+          <Text style={styles.historyCount}>{sales.length} receipts</Text>
+        </View>
 
-        {sales.length === 0 ? (
-          <Text style={styles.emptyText}>No orders recorded for this customer yet.</Text>
+        {sales.length > 0 ? (
+          sales.map((order) => {
+            const dueOnOrder = Math.max(0, order.total_amount - (order.paid_amount || 0));
+            const isFullyPaid = dueOnOrder === 0;
+
+            return (
+              <Card key={order.id} style={styles.orderCard}>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('SaleDetail', { saleId: order.id })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.orderTopRow}>
+                    <View>
+                      <Text style={styles.invoiceNum}>#{order.invoice_number}</Text>
+                      <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
+                    </View>
+                    <Badge
+                      label={isFullyPaid ? 'PAID' : 'DUE BALANCE'}
+                      variant={isFullyPaid ? 'success' : 'danger'}
+                    />
+                  </View>
+
+                  <View style={styles.orderBottomRow}>
+                    <View>
+                      <Text style={styles.orderTotalLabel}>Invoice Total</Text>
+                      <Text style={styles.orderTotalVal}>
+                        {formatCurrency(order.total_amount, currencySymbol)}
+                      </Text>
+                    </View>
+
+                    {!isFullyPaid && (
+                      <TouchableOpacity
+                        style={styles.payBtn}
+                        onPress={() => openPaymentForSale(order)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="cash-outline" size={14} color={COLORS.primary} />
+                        <Text style={styles.payBtnText}>
+                          Collect {formatCurrency(dueOnOrder, currencySymbol)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            );
+          })
         ) : (
-          sales.map((sale) => (
-            <Card
-              key={sale.id}
-              style={styles.saleCard}
-              onPress={() => navigation.navigate('SaleDetail', { saleId: sale.id })}
-            >
-              <View style={styles.saleRow}>
-                <View style={styles.saleLeft}>
-                  <Text style={styles.invoiceNumber}>{sale.invoice_number}</Text>
-                  <Text style={styles.saleDate}>
-                    {formatDate(sale.sale_date)} • {sale.payment_method}
-                  </Text>
-                </View>
-
-                <View style={styles.saleRight}>
-                  <Text style={styles.saleTotal}>
-                    {formatCurrency(sale.total_amount, currencySymbol)}
-                  </Text>
-                  <Badge
-                    label={sale.payment_status}
-                    variant={
-                      sale.payment_status === 'PAID'
-                        ? 'success'
-                        : sale.payment_status === 'PARTIAL'
-                        ? 'warning'
-                        : 'danger'
-                    }
-                    size="sm"
-                  />
-                </View>
-              </View>
-
-              {sale.balance_amount > 0 && (
-                <View style={styles.balanceActionRow}>
-                  <Text style={styles.balanceDueNotice}>
-                    Remaining Balance: {formatCurrency(sale.balance_amount, currencySymbol)}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.payBtn}
-                    onPress={() => openPaymentForSale(sale)}
-                  >
-                    <Text style={styles.payBtnText}>Collect Payment</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </Card>
-          ))
+          <Card style={styles.emptyCard}>
+            <Ionicons name="receipt-outline" size={32} color={COLORS.textTertiary} />
+            <Text style={styles.emptyText}>No transactions recorded for this client.</Text>
+          </Card>
         )}
       </ScrollView>
 
       {/* Collect Payment Modal */}
-      <ModalSheet
-        visible={Boolean(selectedSaleToPay)}
-        onClose={() => setSelectedSaleToPay(null)}
-        title="Collect Customer Payment"
-        subtitle={`Invoice #${selectedSaleToPay?.invoice_number} | Due: ${formatCurrency(selectedSaleToPay?.balance_amount || 0, currencySymbol)}`}
-      >
-        <Input
-          label={`Amount Received (${currencySymbol})`}
-          value={paymentAmount}
-          onChangeText={setPaymentAmount}
-          placeholder="0"
-          keyboardType="numeric"
-        />
+      {selectedSaleToPay && (
+        <ModalSheet
+          visible={Boolean(selectedSaleToPay)}
+          onClose={() => setSelectedSaleToPay(null)}
+          title="Collect Balance Payment"
+          subtitle={`Invoice #${selectedSaleToPay.invoice_number}`}
+        >
+          <Input
+            label={`Payment Amount (${currencySymbol}) *`}
+            value={paymentAmount}
+            onChangeText={setPaymentAmount}
+            placeholder="0"
+            keyboardType="numeric"
+          />
 
-        <Text style={styles.fieldLabel}>Payment Method</Text>
-        <View style={styles.methodToggle}>
-          {['CASH', 'CARD', 'BANK', 'WALLET'].map((m) => (
-            <TouchableOpacity
-              key={m}
-              style={[styles.methodBtn, paymentMethod === m && styles.methodBtnActive]}
-              onPress={() => setPaymentMethod(m)}
-            >
-              <Text style={[styles.methodText, paymentMethod === m && styles.methodTextActive]}>
-                {m}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Button
-          title="Confirm Collection"
-          variant="primary"
-          loading={submittingPayment}
-          onPress={handleConfirmPayment}
-          style={{ marginTop: 12 }}
-        />
-      </ModalSheet>
-    </SafeAreaView>
+          <Button
+            title="Confirm & Record Receipt"
+            variant="primary"
+            loading={submittingPayment}
+            onPress={handleRecordPayment}
+            style={styles.modalBtn}
+          />
+        </ModalSheet>
+      )}
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
-  card: {
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCard: {
     padding: SPACING.lg,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
+    borderRadius: RADIUS.xl,
   },
   profileHeader: {
     flexDirection: 'row',
@@ -271,147 +272,141 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.surfaceSubtle,
+    backgroundColor: COLORS.primarySurface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
   },
-  avatarInfo: {
+  avatarText: {
+    ...TYPOGRAPHY.h2,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  profileInfo: {
     flex: 1,
   },
-  name: {
+  clientName: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
   },
-  phone: {
-    ...TYPOGRAPHY.bodySmall,
+  clientPhone: {
+    ...TYPOGRAPHY.caption,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  notesText: {
-    ...TYPOGRAPHY.caption,
+  clientNotes: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
+    fontStyle: 'italic',
     marginTop: 2,
   },
-  ledgerRow: {
+  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
-  ledgerCol: {
+  statCol: {
     flex: 1,
     alignItems: 'center',
   },
-  ledgerLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
+  statLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginBottom: 2,
   },
-  ledgerVal: {
-    ...TYPOGRAPHY.h3,
+  statVal: {
+    ...TYPOGRAPHY.bodyMedium,
     fontWeight: '800',
     color: COLORS.textPrimary,
   },
-  ledgerDivider: {
+  statDivider: {
     width: 1,
-    height: 32,
+    height: 28,
     backgroundColor: COLORS.borderLight,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
   },
-  emptyText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
+  historyCount: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
   },
-  saleCard: {
-    padding: SPACING.md,
+  orderCard: {
     marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
   },
-  saleRow: {
+  orderTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
-  saleLeft: {
-    flex: 1,
-  },
-  invoiceNumber: {
-    ...TYPOGRAPHY.bodySmall,
+  invoiceNum: {
+    ...TYPOGRAPHY.bodyMedium,
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  saleDate: {
-    ...TYPOGRAPHY.caption,
+  orderDate: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
-    marginTop: 2,
   },
-  saleRight: {
-    alignItems: 'flex-end',
-  },
-  saleTotal: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  balanceActionRow: {
+  orderBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.sm,
     paddingTop: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
   },
-  balanceDueNotice: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.warning,
-    fontWeight: '700',
+  orderTotalLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  orderTotalVal: {
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
   payBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(91,36,19,0.15)',
+    gap: 4,
   },
   payBtnText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textInverse,
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.primary,
     fontWeight: '700',
   },
-  fieldLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  methodToggle: {
-    flexDirection: 'row',
-    marginBottom: SPACING.sm,
-  },
-  methodBtn: {
-    flex: 1,
-    paddingVertical: 8,
+  emptyCard: {
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.xs,
-    marginRight: 4,
+    justifyContent: 'center',
+    padding: SPACING.xl,
+    gap: 8,
   },
-  methodBtnActive: {
-    backgroundColor: COLORS.primary,
-  },
-  methodText: {
+  emptyText: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
+    color: COLORS.textTertiary,
   },
-  methodTextActive: {
-    color: COLORS.textInverse,
-    fontWeight: '700',
+  modalBtn: {
+    marginTop: SPACING.md,
+    borderRadius: RADIUS.pill,
   },
 });

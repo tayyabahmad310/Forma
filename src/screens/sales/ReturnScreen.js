@@ -1,5 +1,6 @@
 /**
  * Process Sales Returns & Refunds Screen
+ * Safe-area aware garment return and inventory restock manager.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -18,6 +18,7 @@ import { getSaleById, getSaleItems } from '../../repositories/saleRepository';
 import { createSalesReturn } from '../../repositories/returnRepository';
 import { formatCurrency, toMinorUnits, toMajorUnits } from '../../utils/currency';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -29,7 +30,7 @@ export default function ReturnScreen({ route, navigation }) {
 
   const [sale, setSale] = useState(null);
   const [items, setItems] = useState([]);
-  const [returnSelections, setReturnSelections] = useState({}); // { [saleItemId]: { quantity: 0, restockEligible: true, unitRefundPrice: 0 } }
+  const [returnSelections, setReturnSelections] = useState({});
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -62,39 +63,44 @@ export default function ReturnScreen({ route, navigation }) {
 
   const updateQuantity = (itemId, delta) => {
     setReturnSelections((prev) => {
-      const cur = prev[itemId] || { quantity: 0, remaining: 0, restockEligible: true };
-      const nextQty = Math.max(0, Math.min(cur.remaining, cur.quantity + delta));
+      const current = prev[itemId] || { quantity: 0, remaining: 0 };
+      const nextQty = Math.max(0, Math.min(current.remaining, current.quantity + delta));
       return {
         ...prev,
-        [itemId]: { ...cur, quantity: nextQty },
+        [itemId]: { ...current, quantity: nextQty },
       };
     });
   };
 
   const toggleRestock = (itemId) => {
     setReturnSelections((prev) => {
-      const cur = prev[itemId];
+      const current = prev[itemId];
       return {
         ...prev,
-        [itemId]: { ...cur, restockEligible: !cur.restockEligible },
+        [itemId]: { ...current, restockEligible: !current.restockEligible },
       };
     });
   };
 
-  // Calculate total refund
-  const totalRefundAmount = Object.entries(returnSelections).reduce((sum, [_, item]) => {
-    return sum + item.quantity * item.unitRefundPrice;
-  }, 0);
+  // Computations
+  let totalRefundAmount = 0;
+  let totalUnitsReturning = 0;
 
-  const totalReturnUnits = Object.values(returnSelections).reduce((sum, item) => sum + item.quantity, 0);
+  for (const it of items) {
+    const sel = returnSelections[it.id];
+    if (sel && sel.quantity > 0) {
+      totalRefundAmount += sel.quantity * sel.unitRefundPrice;
+      totalUnitsReturning += sel.quantity;
+    }
+  }
 
-  const handleSubmitReturn = async () => {
-    if (totalReturnUnits === 0) {
-      Alert.alert('No Items Selected', 'Please select at least 1 unit to return.');
+  const handleProcessReturn = async () => {
+    if (totalUnitsReturning === 0) {
+      Alert.alert('No Items Selected', 'Please specify at least 1 unit to return.');
       return;
     }
     if (!reason.trim()) {
-      Alert.alert('Reason Required', 'Please provide a reason for return (e.g. Size exchange, defective zipper).');
+      Alert.alert('Reason Required', 'Please provide a reason for this return/exchange.');
       return;
     }
 
@@ -107,10 +113,10 @@ export default function ReturnScreen({ route, navigation }) {
         if (sel && sel.quantity > 0) {
           returnItemsPayload.push({
             saleItemId: it.id,
+            productId: it.product_id,
             variantId: it.variant_id,
             quantity: sel.quantity,
-            unitRefundPrice: sel.unitRefundPrice,
-            subtotal: sel.quantity * sel.unitRefundPrice,
+            refundPrice: sel.unitRefundPrice,
             restockEligible: sel.restockEligible,
           });
         }
@@ -118,60 +124,51 @@ export default function ReturnScreen({ route, navigation }) {
 
       await createSalesReturn({
         saleId,
-        customerId: sale.customer_id,
-        totalRefundAmount,
+        refundAmount: totalRefundAmount,
         refundPaymentMethod,
         reason: reason.trim(),
         items: returnItemsPayload,
       });
 
       notifyDataChanged();
-      Alert.alert('Return Processed', 'Sales return completed and inventory adjusted successfully.', [
+      Alert.alert('Return Processed', 'Refund registered and inventory restocked!', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
-      Alert.alert('Return Error', err.message || 'Failed to process return');
+      Alert.alert('Error', err.message || 'Failed to process return');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
       <Header
-        title="Process Return"
-        subtitle={`Invoice ${sale?.invoice_number}`}
+        title="Return & Refund"
+        subtitle={`Invoice #${sale?.invoice_number || saleId}`}
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <Card style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>Return Policy & Restocking Rules</Text>
-          <Text style={styles.noticeBody}>
-            Items marked "Restock Eligible" will be added back into sellable inventory. Damaged items will be recorded in the audit log without increasing sellable stock.
-          </Text>
-        </Card>
-
-        {/* Item Selection */}
         <Card style={styles.card}>
-          <Text style={styles.sectionHeader}>Select Items to Return</Text>
+          <Text style={styles.cardTitle}>Select Garments to Return</Text>
+          <Text style={styles.cardSubtitle}>Specify quantity and whether item is suitable for restocking</Text>
 
           {items.map((it) => {
             const sel = returnSelections[it.id] || { quantity: 0, remaining: 0, restockEligible: true };
-            const isFullyReturned = sel.remaining === 0;
+            const canReturn = sel.remaining > 0;
 
             return (
-              <View key={it.id} style={styles.itemBox}>
-                <View style={styles.itemTopRow}>
-                  <View style={styles.itemTitleCol}>
-                    <Text style={styles.itemName}>{it.product_name_snapshot}</Text>
-                    <Text style={styles.itemVariant}>{it.variant_name_snapshot}</Text>
-                    <Text style={styles.itemRemainingText}>
-                      Purchased: {it.quantity} | Available to return: {sel.remaining}
-                    </Text>
-                  </View>
+              <View key={it.id} style={styles.itemRow}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>{it.product_name_snapshot}</Text>
+                  <Text style={styles.itemMeta}>
+                    {it.size_snapshot} / {it.color_snapshot} • Max returnable: {sel.remaining} pcs
+                  </Text>
+                </View>
 
-                  {!isFullyReturned ? (
+                {canReturn ? (
+                  <View style={styles.itemControls}>
                     <View style={styles.stepper}>
                       <TouchableOpacity
                         style={styles.stepBtn}
@@ -179,7 +176,7 @@ export default function ReturnScreen({ route, navigation }) {
                       >
                         <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
                       </TouchableOpacity>
-                      <Text style={styles.qtyText}>{sel.quantity}</Text>
+                      <Text style={styles.stepVal}>{sel.quantity}</Text>
                       <TouchableOpacity
                         style={styles.stepBtn}
                         onPress={() => updateQuantity(it.id, 1)}
@@ -187,31 +184,23 @@ export default function ReturnScreen({ route, navigation }) {
                         <Ionicons name="add" size={16} color={COLORS.textPrimary} />
                       </TouchableOpacity>
                     </View>
-                  ) : (
-                    <Text style={styles.fullyReturnedNotice}>Fully Returned</Text>
-                  )}
-                </View>
 
-                {sel.quantity > 0 && (
-                  <View style={styles.restockRow}>
-                    <TouchableOpacity
-                      style={styles.checkboxRow}
-                      onPress={() => toggleRestock(it.id)}
-                    >
-                      <Ionicons
-                        name={sel.restockEligible ? 'checkbox' : 'square-outline'}
-                        size={20}
-                        color={sel.restockEligible ? COLORS.success : COLORS.textTertiary}
-                      />
-                      <Text style={styles.checkboxLabel}>
-                        {sel.restockEligible ? 'Restock to Inventory (Resellable)' : 'Damaged / Discard (Do Not Restock)'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <Text style={styles.refundLineText}>
-                      Refund: {formatCurrency(sel.quantity * sel.unitRefundPrice, currencySymbol)}
-                    </Text>
+                    {sel.quantity > 0 && (
+                      <TouchableOpacity
+                        style={[styles.restockChip, sel.restockEligible && styles.restockChipActive]}
+                        onPress={() => toggleRestock(it.id)}
+                      >
+                        <Ionicons
+                          name={sel.restockEligible ? 'checkbox' : 'square-outline'}
+                          size={14}
+                          color={sel.restockEligible ? COLORS.primary : COLORS.textTertiary}
+                        />
+                        <Text style={styles.restockText}>Restock</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
+                ) : (
+                  <Text style={styles.fullyReturned}>Already fully returned</Text>
                 )}
               </View>
             );
@@ -220,232 +209,141 @@ export default function ReturnScreen({ route, navigation }) {
 
         {/* Refund Details */}
         <Card style={styles.card}>
-          <Text style={styles.sectionHeader}>Refund Details</Text>
+          <Text style={styles.cardTitle}>Refund Settlement</Text>
+
+          <View style={styles.totalBox}>
+            <Text style={styles.totalLabel}>Total Refund Due Customer</Text>
+            <Text style={styles.totalVal}>{formatCurrency(totalRefundAmount, currencySymbol)}</Text>
+          </View>
 
           <Input
-            label="Reason for Return *"
+            label="Reason for Return / Exchange *"
             value={reason}
             onChangeText={setReason}
-            placeholder="e.g. Size didn't fit, customer selected different color"
-            multiline
-            numberOfLines={2}
+            placeholder="e.g. Size exchange requested by customer"
           />
 
-          <Text style={styles.fieldLabel}>Refund Payment Method</Text>
-          <View style={styles.methodToggle}>
-            <TouchableOpacity
-              style={[styles.methodBtn, refundPaymentMethod === 'CASH' && styles.methodBtnActive]}
-              onPress={() => setRefundPaymentMethod('CASH')}
-            >
-              <Text style={[styles.methodText, refundPaymentMethod === 'CASH' && styles.methodTextActive]}>
-                Cash Refund
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.methodBtn, refundPaymentMethod === 'CUSTOMER_CREDIT' && styles.methodBtnActive]}
-              onPress={() => setRefundPaymentMethod('CUSTOMER_CREDIT')}
-            >
-              <Text style={[styles.methodText, refundPaymentMethod === 'CUSTOMER_CREDIT' && styles.methodTextActive]}>
-                Store Credit
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Button
+            title={`Process Refund (${formatCurrency(totalRefundAmount, currencySymbol)})`}
+            variant="primary"
+            loading={submitting}
+            onPress={handleProcessReturn}
+            style={styles.submitBtn}
+          />
         </Card>
-
-        {/* Total Card */}
-        <Card style={styles.totalCard}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalUnitsLabel}>Total Units Returning</Text>
-            <Text style={styles.totalUnitsVal}>{totalReturnUnits} pcs</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.grandTotalLabel}>Total Refund Amount</Text>
-            <Text style={styles.grandTotalVal}>{formatCurrency(totalRefundAmount, currencySymbol)}</Text>
-          </View>
-        </Card>
-
-        <Button
-          title="Confirm & Process Return"
-          variant="danger"
-          size="lg"
-          loading={submitting}
-          onPress={handleSubmitReturn}
-          style={styles.submitBtn}
-        />
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
-  noticeCard: {
-    padding: SPACING.md,
-    backgroundColor: COLORS.infoLight,
-    borderColor: COLORS.info,
-    marginBottom: SPACING.md,
-  },
-  noticeTitle: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.infoText,
-    marginBottom: 2,
-  },
-  noticeBody: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.infoText,
-    lineHeight: 16,
-  },
   card: {
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
   },
-  sectionHeader: {
+  cardTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
+  },
+  cardSubtitle: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+    marginTop: 2,
     marginBottom: SPACING.md,
   },
-  itemBox: {
-    paddingVertical: SPACING.sm,
+  itemRow: {
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
-  itemTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  itemTitleCol: {
-    flex: 1,
-    marginRight: SPACING.sm,
+  itemInfo: {
+    marginBottom: 8,
   },
   itemName: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  itemVariant: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
-    marginTop: 1,
-  },
-  itemRemainingText: {
-    ...TYPOGRAPHY.caption,
+  itemMeta: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textTertiary,
     marginTop: 2,
+  },
+  itemControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     padding: 2,
   },
   stepBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.xs,
-    backgroundColor: COLORS.surface,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.surface,
   },
-  qtyText: {
+  stepVal: {
     ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: COLORS.textPrimary,
     minWidth: 32,
     textAlign: 'center',
   },
-  fullyReturnedNotice: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.danger,
-    fontWeight: '600',
-  },
-  restockRow: {
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.xs,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-  checkboxRow: {
+  restockChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-  },
-  checkboxLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  refundLineText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.danger,
-    fontWeight: '700',
-  },
-  fieldLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  methodToggle: {
-    flexDirection: 'row',
-    marginBottom: SPACING.sm,
-  },
-  methodBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.sm,
-    marginRight: 6,
   },
-  methodBtnActive: {
-    backgroundColor: COLORS.primary,
+  restockChipActive: {
+    backgroundColor: COLORS.primarySurface,
   },
-  methodText: {
-    ...TYPOGRAPHY.bodySmall,
+  restockText: {
+    ...TYPOGRAPHY.captionSmall,
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  methodTextActive: {
-    color: COLORS.textInverse,
-    fontWeight: '700',
-  },
-  totalCard: {
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  totalUnitsLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-  },
-  totalUnitsVal: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
-  },
-  grandTotalLabel: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '800',
-  },
-  grandTotalVal: {
-    ...TYPOGRAPHY.h3,
-    fontWeight: '800',
+  fullyReturned: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.danger,
+    fontStyle: 'italic',
+  },
+  totalBox: {
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    alignItems: 'center',
+  },
+  totalLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  totalVal: {
+    ...TYPOGRAPHY.h2,
+    fontWeight: '800',
+    color: COLORS.primary,
+    marginTop: 2,
   },
   submitBtn: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.pill,
   },
 });

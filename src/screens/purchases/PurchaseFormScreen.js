@@ -1,5 +1,6 @@
 /**
  * New Purchase Order / Stock Inward Form Screen
+ * Safe-area aware boutique bulk procurement form.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -20,6 +20,7 @@ import { searchVariantsForPOS } from '../../repositories/productRepository';
 import { formatCurrency, toMinorUnits, toMajorUnits } from '../../utils/currency';
 import { getTodayDateString } from '../../utils/date';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import ScreenContainer from '../../components/common/ScreenContainer';
 import Header from '../../components/common/Header';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -133,7 +134,6 @@ export default function PurchaseFormScreen({ navigation }) {
   const additionalMinor = toMinorUnits(additionalCosts);
   const totalAmount = Math.max(0, subtotal - discountMinor + additionalMinor);
 
-  // Auto-fill paid amount if empty
   useEffect(() => {
     if (!paidAmount) {
       setPaidAmount(String(toMajorUnits(totalAmount)));
@@ -206,38 +206,43 @@ export default function PurchaseFormScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Header title="New Stock Purchase" onBack={() => navigation.goBack()} />
+    <ScreenContainer backgroundColor={COLORS.background} topSafe bottomSafe>
+      <Header
+        title="New Stock Purchase"
+        subtitle="Inward PO & Bulk Restock"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         {/* Supplier & Invoice Card */}
         <Card style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardTitle}>Supplier Information</Text>
+            <Text style={styles.cardTitle}>Vendor Information</Text>
             <TouchableOpacity onPress={() => setShowAddSupplierModal(true)}>
               <Text style={styles.linkText}>+ Add Supplier</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.supplierPillsRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.supplierPills}>
             <TouchableOpacity
-              style={[styles.chip, selectedSupplierId === null && styles.chipSelected]}
+              style={[styles.suppPill, selectedSupplierId === null && styles.suppPillSelected]}
               onPress={() => setSelectedSupplierId(null)}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.chipText, selectedSupplierId === null && styles.chipTextSelected]}>
-                Direct / Unassigned
+              <Text style={[styles.suppPillText, selectedSupplierId === null && styles.suppPillTextSelected]}>
+                Direct / Anonymous
               </Text>
             </TouchableOpacity>
-
             {suppliers.map((s) => {
               const isSelected = selectedSupplierId === s.id;
               return (
                 <TouchableOpacity
                   key={s.id}
-                  style={[styles.chip, isSelected && styles.chipSelected]}
+                  style={[styles.suppPill, isSelected && styles.suppPillSelected]}
                   onPress={() => setSelectedSupplierId(s.id)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                  <Text style={[styles.suppPillText, isSelected && styles.suppPillTextSelected]}>
                     {s.name}
                   </Text>
                 </TouchableOpacity>
@@ -245,103 +250,130 @@ export default function PurchaseFormScreen({ navigation }) {
             })}
           </ScrollView>
 
-          <Input
-            label="Supplier Invoice / Reference #"
-            value={purchaseInvoiceNumber}
-            onChangeText={setPurchaseInvoiceNumber}
-            placeholder="Leave blank for auto-generated reference"
-          />
-
-          <Input
-            label="Purchase Date (YYYY-MM-DD)"
-            value={purchaseDate}
-            onChangeText={setPurchaseDate}
-            placeholder="YYYY-MM-DD"
-          />
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Input
+                label="Vendor Invoice # (Optional)"
+                value={purchaseInvoiceNumber}
+                onChangeText={setPurchaseInvoiceNumber}
+                placeholder="e.g. INV-9042"
+              />
+            </View>
+            <View style={styles.col}>
+              <Input
+                label="Inward Date"
+                value={purchaseDate}
+                onChangeText={setPurchaseDate}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+          </View>
         </Card>
 
-        {/* Inward Items */}
+        {/* Stock Items Card */}
         <Card style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardTitle}>Inward Stock Items ({items.length})</Text>
-            <Button
-              title="+ Add Item"
-              variant="outline"
-              size="sm"
+            <View>
+              <Text style={styles.cardTitle}>Apparel Items to Inward</Text>
+              <Text style={styles.cardSubtitle}>{items.length} items selected</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addItemsBtn}
               onPress={loadVariantCatalog}
-            />
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={16} color={COLORS.primary} />
+              <Text style={styles.addItemsBtnText}>Add Items</Text>
+            </TouchableOpacity>
           </View>
 
-          {items.length === 0 ? (
-            <Text style={styles.emptyItemsText}>
-              No items added. Tap "+ Add Item" to select clothing items.
-            </Text>
-          ) : (
-            items.map((it, idx) => (
-              <View key={`${it.variantId}-${idx}`} style={styles.itemCard}>
-                <View style={styles.itemTopRow}>
-                  <View style={styles.itemHeaderLeft}>
-                    <Text style={styles.itemName}>{it.productName}</Text>
-                    <Text style={styles.itemVariant}>Variant: {it.variantName}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => removeItem(idx)}>
-                    <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-                  </TouchableOpacity>
+          {items.map((it, idx) => (
+            <View key={idx} style={styles.itemRow}>
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemName}>{it.productName}</Text>
+                <Text style={styles.itemVariant}>{it.variantName}</Text>
+              </View>
+
+              <View style={styles.inputsRow}>
+                <View style={styles.inputCol}>
+                  <Text style={styles.microLabel}>Qty</Text>
+                  <Input
+                    value={String(it.quantity)}
+                    onChangeText={(val) => updateItemQty(idx, val)}
+                    keyboardType="number-pad"
+                    containerStyle={styles.compactInput}
+                  />
                 </View>
 
-                <View style={styles.itemInputRow}>
-                  <View style={styles.itemInputCol}>
-                    <Input
-                      label="Inward Qty"
-                      value={String(it.quantity)}
-                      onChangeText={(val) => updateItemQty(idx, val)}
-                      placeholder="1"
-                      keyboardType="number-pad"
-                    />
-                  </View>
-                  <View style={styles.itemInputCol}>
-                    <Input
-                      label={`Cost/Unit (${currencySymbol})`}
-                      value={it.unitCostInput}
-                      onChangeText={(val) => updateItemCost(idx, val)}
-                      placeholder="0"
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.itemSubtotalCol}>
-                    <Text style={styles.subtotalLabel}>Subtotal</Text>
-                    <Text style={styles.subtotalVal}>
-                      {formatCurrency(it.subtotal, currencySymbol)}
-                    </Text>
-                  </View>
+                <View style={styles.inputCol}>
+                  <Text style={styles.microLabel}>Unit Cost</Text>
+                  <Input
+                    value={it.unitCostInput}
+                    onChangeText={(val) => updateItemCost(idx, val)}
+                    keyboardType="numeric"
+                    containerStyle={styles.compactInput}
+                  />
                 </View>
+
+                <View style={styles.subtotalCol}>
+                  <Text style={styles.microLabel}>Subtotal</Text>
+                  <Text style={styles.itemSubtotal}>
+                    {formatCurrency(it.subtotal, currencySymbol)}
+                  </Text>
+                </View>
+
+                <TouchableOpacity onPress={() => removeItem(idx)} style={styles.removeBtn}>
+                  <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                </TouchableOpacity>
               </View>
-            ))
+            </View>
+          ))}
+
+          {items.length === 0 && (
+            <TouchableOpacity
+              style={styles.pickPrompt}
+              onPress={loadVariantCatalog}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="shirt-outline" size={28} color={COLORS.textTertiary} />
+              <Text style={styles.pickPromptText}>Tap to select clothes from catalog to restock</Text>
+            </TouchableOpacity>
           )}
         </Card>
 
-        {/* Costs & Settlements */}
+        {/* Financials & Settlement */}
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Additional Costs & Payments</Text>
+          <Text style={styles.cardTitle}>Cost Totals & Payment</Text>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Input
-                label={`Supplier Discount (${currencySymbol})`}
-                value={purchaseDiscount}
-                onChangeText={setPurchaseDiscount}
+                label="Freight / Packing (+)"
+                value={additionalCosts}
+                onChangeText={setAdditionalCosts}
                 placeholder="0"
                 keyboardType="numeric"
               />
             </View>
             <View style={styles.col}>
               <Input
-                label={`Shipping / Carriage (${currencySymbol})`}
-                value={additionalCosts}
-                onChangeText={setAdditionalCosts}
+                label="Supplier Discount (-)"
+                value={purchaseDiscount}
+                onChangeText={setPurchaseDiscount}
                 placeholder="0"
                 keyboardType="numeric"
               />
+            </View>
+          </View>
+
+          <View style={styles.totalsBox}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Gross Subtotal</Text>
+              <Text style={styles.totalVal}>{formatCurrency(subtotal, currencySymbol)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.grandLabel}>Net Inward Amount</Text>
+              <Text style={styles.grandVal}>{formatCurrency(totalAmount, currencySymbol)}</Text>
             </View>
           </View>
 
@@ -353,89 +385,46 @@ export default function PurchaseFormScreen({ navigation }) {
             keyboardType="numeric"
           />
 
-          <Input
-            label="Purchase Notes"
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Notes about supplier, delivery condition, or terms..."
+          {balanceDue > 0 ? (
+            <View style={styles.dueNotice}>
+              <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
+              <Text style={styles.dueNoticeText}>
+                Remaining Supplier Due: {formatCurrency(balanceDue, currencySymbol)}
+              </Text>
+            </View>
+          ) : null}
+
+          <Button
+            title="Confirm Inward Purchase"
+            variant="primary"
+            loading={submitting}
+            onPress={handleSavePurchase}
+            style={styles.submitBtn}
           />
         </Card>
-
-        {/* Totals Summary */}
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Items Subtotal</Text>
-            <Text style={styles.summaryVal}>{formatCurrency(subtotal, currencySymbol)}</Text>
-          </View>
-          {discountMinor > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Supplier Discount</Text>
-              <Text style={styles.discountVal}>-{formatCurrency(discountMinor, currencySymbol)}</Text>
-            </View>
-          )}
-          {additionalMinor > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping & Delivery</Text>
-              <Text style={styles.summaryVal}>+{formatCurrency(additionalMinor, currencySymbol)}</Text>
-            </View>
-          )}
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.grandTotalLabel}>Total Purchase Cost</Text>
-            <Text style={styles.grandTotalVal}>{formatCurrency(totalAmount, currencySymbol)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Amount Paid</Text>
-            <Text style={styles.paidVal}>{formatCurrency(paidMinor, currencySymbol)}</Text>
-          </View>
-          {balanceDue > 0 ? (
-            <View style={styles.summaryRow}>
-              <Text style={styles.balanceDueLabel}>Remaining Supplier Payable</Text>
-              <Text style={styles.balanceDueVal}>{formatCurrency(balanceDue, currencySymbol)}</Text>
-            </View>
-          ) : (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Payment Status</Text>
-              <Text style={styles.paidVal}>Fully Paid</Text>
-            </View>
-          )}
-        </Card>
-
-        <Button
-          title="Confirm Purchase & Inward Stock"
-          variant="primary"
-          size="lg"
-          loading={submitting}
-          onPress={handleSavePurchase}
-          style={styles.submitBtn}
-        />
       </ScrollView>
 
-      {/* Select Item Modal */}
+      {/* Item Picker Modal */}
       <ModalSheet
         visible={showItemPickerModal}
         onClose={() => setShowItemPickerModal(false)}
-        title="Select Clothing Item"
-        subtitle="Choose item and size/color variant to purchase"
+        title="Select Clothing Variant"
+        subtitle="Choose variant to add stock to"
       >
-        <ScrollView style={{ maxHeight: 400 }}>
+        <ScrollView style={styles.modalVariantList}>
           {allVariants.map((v) => (
             <TouchableOpacity
               key={v.variant_id}
-              style={styles.pickerItem}
+              style={styles.modalVariantItem}
               onPress={() => handleSelectItemToPurchase(v)}
             >
               <View>
-                <Text style={styles.pickerItemName}>{v.product_name}</Text>
-                <Text style={styles.pickerItemVariant}>
-                  Size: {v.size} | Color: {v.color}
+                <Text style={styles.modalVariantTitle}>{v.product_name}</Text>
+                <Text style={styles.modalVariantSub}>
+                  {v.size} / {v.color} • Available: {v.current_stock} pcs
                 </Text>
               </View>
-              <Text style={styles.pickerItemCost}>
-                Cost: {formatCurrency(v.purchase_cost || 0, currencySymbol)}
-              </Text>
+              <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -445,47 +434,44 @@ export default function PurchaseFormScreen({ navigation }) {
       <ModalSheet
         visible={showAddSupplierModal}
         onClose={() => setShowAddSupplierModal(false)}
-        title="Add Supplier"
-        subtitle="Save supplier contact for purchase orders"
+        title="Add Vendor"
+        subtitle="Quickly register new apparel supplier"
       >
         <Input
-          label="Supplier Name *"
+          label="Vendor Name *"
           value={newSuppName}
           onChangeText={setNewSuppName}
-          placeholder="e.g. Master Fabrics & Garments"
+          placeholder="e.g. Al-Karam Wholesale"
         />
 
         <Input
-          label="Phone Number"
+          label="Phone / WhatsApp"
           value={newSuppPhone}
           onChangeText={setNewSuppPhone}
-          placeholder="e.g. 0321 9876543"
+          placeholder="e.g. +92 300 1234567"
           keyboardType="phone-pad"
         />
 
         <Button
-          title="Save Supplier"
+          title="Save Vendor"
           variant="primary"
           onPress={handleCreateSupplier}
-          style={{ marginTop: 12 }}
+          style={styles.modalBtn}
         />
       </ModalSheet>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   contentContainer: {
     padding: SPACING.lg,
     paddingBottom: SPACING.xxxl,
   },
   card: {
+    marginBottom: SPACING.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    borderRadius: RADIUS.xl,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -497,148 +483,174 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.h3,
     color: COLORS.textPrimary,
   },
+  cardSubtitle: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
   linkText: {
     ...TYPOGRAPHY.caption,
-    color: COLORS.accent,
+    color: COLORS.primary,
     fontWeight: '700',
   },
-  supplierPillsRow: {
-    marginBottom: SPACING.md,
-  },
-  chip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surfaceSubtle,
-    marginRight: SPACING.xs,
-  },
-  chipSelected: {
-    backgroundColor: COLORS.primary,
-  },
-  chipText: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textPrimary,
-    fontWeight: '500',
-  },
-  chipTextSelected: {
-    color: COLORS.textInverse,
-    fontWeight: '700',
-  },
-  emptyItemsText: {
-    ...TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
+  supplierPills: {
+    gap: 8,
     paddingVertical: SPACING.sm,
   },
-  itemCard: {
+  suppPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  itemTopRow: {
+  suppPillSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  suppPillText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+  },
+  suppPillTextSelected: {
+    color: COLORS.textInverse,
+  },
+  row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
+    gap: SPACING.md,
   },
-  itemHeaderLeft: {
+  col: {
     flex: 1,
   },
+  addItemsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(91,36,19,0.15)',
+  },
+  addItemsBtnText: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.primary,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  itemRow: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  itemInfo: {
+    marginBottom: 6,
+  },
   itemName: {
-    ...TYPOGRAPHY.bodySmall,
+    ...TYPOGRAPHY.bodyMedium,
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
   itemVariant: {
-    ...TYPOGRAPHY.caption,
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.textSecondary,
   },
-  itemInputRow: {
+  inputsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemInputCol: {
-    flex: 1,
-    marginRight: SPACING.xs,
-  },
-  itemSubtotalCol: {
-    minWidth: 70,
     alignItems: 'flex-end',
-    paddingBottom: 4,
+    gap: 8,
   },
-  subtotalLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+  inputCol: {
+    width: 75,
+  },
+  microLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
     fontSize: 10,
+    marginBottom: 2,
   },
-  subtotalVal: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+  compactInput: {
+    marginBottom: 0,
   },
-  row: {
-    flexDirection: 'row',
-  },
-  col: {
+  subtotalCol: {
     flex: 1,
-    marginRight: SPACING.sm,
+    paddingBottom: 8,
   },
-  summaryCard: {
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
+  itemSubtotal: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
-  summaryRow: {
+  removeBtn: {
+    paddingBottom: 10,
+  },
+  pickPrompt: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.lg,
+  },
+  pickPromptText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textTertiary,
+  },
+  totalsBox: {
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginVertical: SPACING.md,
+    gap: 4,
+  },
+  totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
   },
-  summaryLabel: {
-    ...TYPOGRAPHY.bodySmall,
+  totalLabel: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
+  },
+  totalVal: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '600',
     color: COLORS.textSecondary,
   },
-  summaryVal: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
+  grandLabel: {
+    ...TYPOGRAPHY.bodyMedium,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
   },
-  discountVal: {
-    ...TYPOGRAPHY.bodySmall,
+  grandVal: {
+    ...TYPOGRAPHY.h3,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  dueNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(197, 83, 62, 0.12)',
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
+  },
+  dueNoticeText: {
+    ...TYPOGRAPHY.captionSmall,
     color: COLORS.danger,
     fontWeight: '700',
   },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.borderLight,
-    marginVertical: SPACING.sm,
-  },
-  grandTotalLabel: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '800',
-  },
-  grandTotalVal: {
-    ...TYPOGRAPHY.h3,
-    fontWeight: '800',
-  },
-  paidVal: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '700',
-    color: COLORS.success,
-  },
-  balanceDueLabel: {
-    ...TYPOGRAPHY.bodySmall,
-    fontWeight: '700',
-    color: COLORS.warning,
-  },
-  balanceDueVal: {
-    ...TYPOGRAPHY.bodyMedium,
-    fontWeight: '800',
-    color: COLORS.warning,
-  },
   submitBtn: {
-    marginTop: SPACING.lg,
+    borderRadius: RADIUS.pill,
   },
-  pickerItem: {
+  modalVariantList: {
+    maxHeight: 320,
+  },
+  modalVariantItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -646,18 +658,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
-  pickerItemName: {
+  modalVariantTitle: {
     ...TYPOGRAPHY.bodySmall,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  pickerItemVariant: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textSecondary,
+  modalVariantSub: {
+    ...TYPOGRAPHY.captionSmall,
+    color: COLORS.textTertiary,
   },
-  pickerItemCost: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: '700',
-    color: COLORS.primary,
+  modalBtn: {
+    marginTop: SPACING.md,
+    borderRadius: RADIUS.pill,
   },
 });
