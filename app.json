@@ -14,7 +14,7 @@
     "android": {
       "package": "com.clothio.pos",
       "versionCode": 1,
-      "compileSdkVersion": 36,
+      "compileSdkVersion": 37,
       "targetSdkVersion": 35,
       "adaptiveIcon": {
         "backgroundColor": "#1E1E24",
