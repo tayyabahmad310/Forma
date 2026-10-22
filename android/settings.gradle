@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Clothio - Clothing POS & Inventory'
+rootProject.name = 'clothio'
 
 expoAutolinking.useExpoVersionCatalog()
 

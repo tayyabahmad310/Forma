@@ -33,6 +33,7 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.1.12297006
 
     steps:
       - name: 1. Checkout Repository
@@ -51,10 +52,11 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: 4. Accept Android SDK Licenses & Install Platform 35
+      - name: 4. Accept Android SDK Licenses & Install Platform 35 and NDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0" || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "ndk;27.1.12297006" || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: 5. Install NPM Dependencies
         run: |
@@ -80,7 +82,7 @@ jobs:
           elif [ "$BUILD_TYPE" = "both" ]; then
             ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
           else
-            ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace
           fi
 
       - name: 9. Upload APK Artifacts
