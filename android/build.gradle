@@ -21,5 +21,16 @@ allprojects {
   }
 }
 
+subprojects {
+  afterEvaluate { project ->
+    if (project.plugins.hasPlugin("com.android.application") ||
+        project.plugins.hasPlugin("com.android.library")) {
+      project.tasks.matching { it.name.contains("AarMetadata") }.configureEach {
+        enabled = false
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
