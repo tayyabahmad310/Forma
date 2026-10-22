@@ -135,29 +135,46 @@ All financial figures are calculated from stored SQLite records without floating
 
 ---
 
-## 7. Android Local Build Instructions & Prerequisites
+## 7. Android Build Options (No Local Java/Android Required)
 
-To build a standalone installable Android APK or Google Play AAB bundle without cloud services:
+Since your PC may not have Java or the Android SDK installed, and Expo Cloud (EAS) is not desired, the project is configured with automated **GitHub Actions CI/CD** to build standalone APKs directly on GitHub's build servers at zero cost.
 
-### Prerequisites:
-1. **JDK (Java Development Kit)**: OpenJDK 17 or 21 installed and configured in `JAVA_HOME`.
-2. **Android SDK**:
-   - Android SDK Platform 36 (Android 16).
-   - Android SDK Build-Tools 36.0.0.
-   - Set in environment variable `ANDROID_HOME` or `ANDROID_SDK_ROOT`.
-3. **Gradle**: Managed automatically via the included `./android/gradlew` wrapper.
+### Option A: Build via GitHub Actions (Recommended)
 
-### Build Commands:
+The repository includes [`.github/workflows/build-apk.yml`](file:///d:/projects/apps/clothio/.github/workflows/build-apk.yml).
+
+#### How to trigger and get your APK:
+1. Push this repository to your GitHub account:
+   ```bash
+   git remote add origin https://github.com/<your-username>/<your-repo-name>.git
+   git branch -M main
+   git push -u origin main
+   ```
+2. On your GitHub repository page:
+   - Click the **"Actions"** tab.
+   - Select **"Build Android APK (Local/Offline)"** on the left.
+   - Click the **"Run workflow"** button on the right, select `release`, `debug`, or `both`, and click **Run workflow**.
+3. When the workflow finishes (typically 3–5 minutes):
+   - Click into the completed workflow run.
+   - Under the **Artifacts** section at the bottom, download `clothio-release-apk` or `clothio-debug-apk`.
+   - Transfer the `.apk` file to your Android phone and install!
+4. **Automatic Release on Git Tag**:
+   - Pushing a version tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`) automatically publishes a GitHub Release with the APK attached.
+
+---
+
+### Option B: Local Android Build (If Java & Android SDK are installed)
+
+If you configure native tools locally in the future:
+- **Prerequisites**: OpenJDK 17 or 21 (`JAVA_HOME`) and Android SDK 36 (`ANDROID_HOME`).
+- **Build Commands**:
 ```bash
-# 1. Build local Debug APK:
+# Debug APK:
 npm run build:apk:debug
 # Output: android/app/build/outputs/apk/debug/app-debug.apk
 
-# 2. Build local Release APK:
+# Release APK:
 npm run build:apk
 # Output: android/app/build/outputs/apk/release/app-release.apk
-
-# 3. Build Google Play Bundle (AAB):
-cd android && ./gradlew bundleRelease
-# Output: android/app/build/outputs/bundle/release/app-release.aab
 ```
+
