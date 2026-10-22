@@ -26,9 +26,13 @@ on:
 jobs:
   build-apk:
     name: Build Android APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
+
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - name: 1. Checkout Repository
@@ -41,35 +45,34 @@ jobs:
           cache: 'npm'
 
       - name: 3. Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: 4. Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 5. Accept Android SDK Licenses
+      - name: 4. Accept Android SDK Licenses
         run: |
-          yes | sdkmanager --licenses || true
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: 6. Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: 7. Install NPM Dependencies
+      - name: 5. Install NPM Dependencies
         run: |
           npm install
 
-      - name: 8. Run Automated Accounting & Business Calculation Tests
+      - name: 6. Run Automated Accounting & Business Calculation Tests
         run: |
           npm test
 
-      - name: 9. Prepare Gradle Wrapper Permissions
+      - name: 7. Ensure Native Android Directory Exists
         run: |
+          if [ ! -d "android" ]; then
+            echo "Generating native android project with expo prebuild..."
+            npx expo prebuild --platform android --no-install
+          fi
           sed -i -e 's/\r$//' android/gradlew
           chmod +x android/gradlew
 
-      - name: 10. Build Android APK(s)
+      - name: 8. Build Standalone Android APK(s)
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'release' }}
         run: |
@@ -82,23 +85,25 @@ jobs:
             ./gradlew assembleRelease --no-daemon --stacktrace
           fi
 
-      - name: 11. Upload Release APK Artifact
-        if: github.event.inputs.build_type != 'debug'
+      - name: 9. Upload Release APK Artifact
+        if: always() && (github.event.inputs.build_type != 'debug')
         uses: actions/upload-artifact@v4
         with:
           name: clothio-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
+          if-no-files-found: warn
 
-      - name: 12. Upload Debug APK Artifact
-        if: github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both'
+      - name: 10. Upload Debug APK Artifact
+        if: always() && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both')
         uses: actions/upload-artifact@v4
         with:
           name: clothio-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          if-no-files-found: warn
 
-      - name: 13. Create GitHub Release with APK (on git tag)
+      - name: 11. Create GitHub Release with APK (on git tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
