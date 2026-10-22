@@ -51,9 +51,10 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: 4. Accept Android SDK Licenses
+      - name: 4. Accept Android SDK Licenses & Install Platform 35
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0" || true
 
       - name: 5. Install NPM Dependencies
         run: |
@@ -63,12 +64,8 @@ jobs:
         run: |
           npm test
 
-      - name: 7. Ensure Native Android Directory Exists
+      - name: 7. Prepare Gradle Permissions
         run: |
-          if [ ! -d "android" ]; then
-            echo "Generating native android project with expo prebuild..."
-            npx expo prebuild --platform android --no-install
-          fi
           sed -i -e 's/\r$//' android/gradlew
           chmod +x android/gradlew
 
@@ -77,39 +74,30 @@ jobs:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'release' }}
         run: |
           cd android
+          echo "Selected build type: $BUILD_TYPE"
           if [ "$BUILD_TYPE" = "debug" ]; then
             ./gradlew assembleDebug --no-daemon --stacktrace
           elif [ "$BUILD_TYPE" = "both" ]; then
-            ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
           else
-            ./gradlew assembleRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
           fi
 
-      - name: 9. Upload Release APK Artifact
-        if: always() && (github.event.inputs.build_type != 'debug')
+      - name: 9. Upload APK Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: clothio-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: clothio-apk-package
+          path: android/app/build/outputs/apk/**/*.apk
           retention-days: 30
           if-no-files-found: warn
 
-      - name: 10. Upload Debug APK Artifact
-        if: always() && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both')
-        uses: actions/upload-artifact@v4
-        with:
-          name: clothio-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: 11. Create GitHub Release with APK (on git tag)
+      - name: 10. Create GitHub Release with APK (on git tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/**/*.apk
           draft: false
           prerelease: false
           generate_release_notes: true
