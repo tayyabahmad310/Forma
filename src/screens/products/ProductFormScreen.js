@@ -1,0 +1,477 @@
+/**
+ * Product & Variants Creation / Editing Screen
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../../context/AppContext';
+import {
+  createProduct,
+  updateProduct,
+  getProductWithVariants,
+} from '../../repositories/productRepository';
+import { getAllCategories } from '../../repositories/categoryRepository';
+import { CLOTHING_SIZES, CLOTHING_COLORS } from '../../constants/config';
+import { toMinorUnits, toMajorUnits } from '../../utils/currency';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../constants/theme';
+import Header from '../../components/common/Header';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+
+export default function ProductFormScreen({ route, navigation }) {
+  const { currencySymbol, notifyDataChanged } = useApp();
+  const productId = route.params?.productId;
+  const isEditing = Boolean(productId);
+
+  const [categories, setCategories] = useState([]);
+  const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
+  const [categoryId, setCategoryId] = useState(null);
+  const [description, setDescription] = useState('');
+  const [purchaseCost, setPurchaseCost] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
+  const [minStockAlert, setMinStockAlert] = useState('5');
+
+  // Variations list: array of { size, color, sku, initialStock, purchaseCost, sellingPrice }
+  const [variants, setVariants] = useState([
+    { size: 'M', color: 'Black', sku: '', initialStock: '0' },
+  ]);
+
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cats = await getAllCategories();
+        setCategories(cats);
+
+        if (isEditing) {
+          const prod = await getProductWithVariants(productId);
+          if (prod) {
+            setName(prod.name);
+            setSku(prod.sku || '');
+            setCategoryId(prod.category_id);
+            setDescription(prod.description || '');
+            setPurchaseCost(String(toMajorUnits(prod.default_purchase_cost)));
+            setSellingPrice(String(toMajorUnits(prod.default_selling_price)));
+            setMinStockAlert(String(prod.min_stock_alert));
+
+            if (prod.variants && prod.variants.length > 0) {
+              setVariants(
+                prod.variants.map((v) => ({
+                  id: v.id,
+                  size: v.size,
+                  color: v.color,
+                  sku: v.sku || '',
+                  initialStock: String(v.current_stock),
+                  purchaseCost: v.purchase_cost !== null ? String(toMajorUnits(v.purchase_cost)) : '',
+                  sellingPrice: v.selling_price !== null ? String(toMajorUnits(v.selling_price)) : '',
+                }))
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error loading product details:', err);
+      }
+    })();
+  }, [productId, isEditing]);
+
+  const handleAddVariantRow = () => {
+    setVariants((prev) => [
+      ...prev,
+      { size: 'L', color: 'White', sku: '', initialStock: '0' },
+    ]);
+  };
+
+  const handleRemoveVariantRow = (index) => {
+    if (variants.length <= 1) {
+      Alert.alert('Required', 'Product must have at least one variation.');
+      return;
+    }
+    setVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateVariantField = (index, field, value) => {
+    setVariants((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!name.trim()) errs.name = 'Product name is required';
+    if (!sellingPrice || isNaN(Number(sellingPrice)) || Number(sellingPrice) < 0) {
+      errs.sellingPrice = 'Enter a valid selling price';
+    }
+    if (purchaseCost && isNaN(Number(purchaseCost))) {
+      errs.purchaseCost = 'Enter a valid purchase cost';
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
+    try {
+      setSaving(true);
+      const defaultCostMinor = toMinorUnits(purchaseCost);
+      const defaultPriceMinor = toMinorUnits(sellingPrice);
+      const minAlertNum = parseInt(minStockAlert, 10) || 5;
+
+      const productData = {
+        name: name.trim(),
+        categoryId,
+        sku: sku.trim() || null,
+        description: description.trim() || null,
+        defaultPurchaseCost: defaultCostMinor,
+        defaultSellingPrice: defaultPriceMinor,
+        minStockAlert: minAlertNum,
+      };
+
+      if (isEditing) {
+        await updateProduct(productId, productData);
+      } else {
+        const variantsData = variants.map((v) => ({
+          size: v.size,
+          color: v.color,
+          sku: v.sku.trim() || null,
+          initialStock: parseInt(v.initialStock, 10) || 0,
+          purchaseCost: v.purchaseCost ? toMinorUnits(v.purchaseCost) : defaultCostMinor,
+          sellingPrice: v.sellingPrice ? toMinorUnits(v.sellingPrice) : defaultPriceMinor,
+        }));
+
+        await createProduct(productData, variantsData);
+      }
+
+      notifyDataChanged();
+      Alert.alert('Success', `Product ${isEditing ? 'updated' : 'created'} successfully!`, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to save product');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <Header
+        title={isEditing ? 'Edit Product' : 'Add New Product'}
+        onBack={() => navigation.goBack()}
+      />
+
+      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        {/* Basic Details */}
+        <Card>
+          <Text style={styles.cardTitle}>Basic Information</Text>
+
+          <Input
+            label="Product Name *"
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Premium Cotton Oxford Shirt"
+            error={errors.name}
+          />
+
+          <Input
+            label="Master Product SKU / Code"
+            value={sku}
+            onChangeText={setSku}
+            placeholder="e.g. SHT-OXF-001"
+          />
+
+          {/* Category Picker */}
+          <Text style={styles.fieldLabel}>Category</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryPills}
+          >
+            {categories.map((c) => {
+              const isSelected = categoryId === c.id;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.pill, isSelected && styles.pillSelected]}
+                  onPress={() => setCategoryId(c.id)}
+                >
+                  <Text style={[styles.pillText, isSelected && styles.pillTextSelected]}>
+                    {c.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Input
+            label="Description / Notes"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Fabric material, wash care, brand, etc."
+            multiline
+            numberOfLines={2}
+          />
+        </Card>
+
+        {/* Pricing & Stock Rules */}
+        <Card>
+          <Text style={styles.cardTitle}>Default Pricing & Stock Rules</Text>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Input
+                label={`Selling Price (${currencySymbol}) *`}
+                value={sellingPrice}
+                onChangeText={setSellingPrice}
+                placeholder="0"
+                keyboardType="numeric"
+                error={errors.sellingPrice}
+              />
+            </View>
+            <View style={styles.col}>
+              <Input
+                label={`Purchase Cost (${currencySymbol})`}
+                value={purchaseCost}
+                onChangeText={setPurchaseCost}
+                placeholder="0"
+                keyboardType="numeric"
+                error={errors.purchaseCost}
+              />
+            </View>
+          </View>
+
+          <Input
+            label="Low Stock Alert Threshold (Units)"
+            value={minStockAlert}
+            onChangeText={setMinStockAlert}
+            placeholder="5"
+            keyboardType="number-pad"
+          />
+        </Card>
+
+        {/* Variations (Sizes & Colors) - Active for creation */}
+        {!isEditing && (
+          <Card>
+            <View style={styles.variantHeader}>
+              <View>
+                <Text style={styles.cardTitle}>Sizes & Colors</Text>
+                <Text style={styles.cardSubtitle}>Configure inventory for each variation</Text>
+              </View>
+              <Button
+                title="+ Add Variant"
+                variant="outline"
+                size="sm"
+                onPress={handleAddVariantRow}
+              />
+            </View>
+
+            {variants.map((v, idx) => (
+              <View key={idx} style={styles.variantRowCard}>
+                <View style={styles.variantTopRow}>
+                  <Text style={styles.variantIndex}>Variant #{idx + 1}</Text>
+                  {variants.length > 1 && (
+                    <TouchableOpacity onPress={() => handleRemoveVariantRow(idx)}>
+                      <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Size Pills */}
+                <Text style={styles.microLabel}>Select Size</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalChips}>
+                  {CLOTHING_SIZES.map((sz) => (
+                    <TouchableOpacity
+                      key={sz}
+                      style={[styles.chip, v.size === sz && styles.chipSelected]}
+                      onPress={() => updateVariantField(idx, 'size', sz)}
+                    >
+                      <Text style={[styles.chipText, v.size === sz && styles.chipTextSelected]}>
+                        {sz}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Color Pills */}
+                <Text style={styles.microLabel}>Select Color</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalChips}>
+                  {CLOTHING_COLORS.map((col) => (
+                    <TouchableOpacity
+                      key={col}
+                      style={[styles.chip, v.color === col && styles.chipSelected]}
+                      onPress={() => updateVariantField(idx, 'color', col)}
+                    >
+                      <Text style={[styles.chipText, v.color === col && styles.chipTextSelected]}>
+                        {col}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={styles.row}>
+                  <View style={styles.col}>
+                    <Input
+                      label="Initial Stock Qty"
+                      value={v.initialStock}
+                      onChangeText={(val) => updateVariantField(idx, 'initialStock', val)}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={styles.col}>
+                    <Input
+                      label="Variant SKU"
+                      value={v.sku}
+                      onChangeText={(val) => updateVariantField(idx, 'sku', val)}
+                      placeholder="e.g. SHT-M-BLK"
+                    />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* Submit */}
+        <Button
+          title={isEditing ? 'Save Changes' : 'Create Clothing Product'}
+          variant="primary"
+          size="lg"
+          loading={saving}
+          onPress={handleSave}
+          style={styles.submitButton}
+        />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  contentContainer: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xxxl,
+  },
+  cardTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  cardSubtitle: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  fieldLabel: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.textPrimary,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  categoryPills: {
+    paddingBottom: SPACING.md,
+  },
+  pill: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceSubtle,
+    marginRight: SPACING.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  pillSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  pillText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  pillTextSelected: {
+    color: COLORS.textInverse,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  col: {
+    flex: 1,
+    marginRight: SPACING.sm,
+  },
+  variantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  variantRowCard: {
+    backgroundColor: COLORS.surfaceSubtle,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  variantTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  variantIndex: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  microLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+    marginBottom: 4,
+  },
+  horizontalChips: {
+    marginBottom: SPACING.sm,
+  },
+  chip: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.xs,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  chipSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textPrimary,
+  },
+  chipTextSelected: {
+    color: COLORS.textInverse,
+    fontWeight: '600',
+  },
+  submitButton: {
+    marginTop: SPACING.md,
+  },
+});
